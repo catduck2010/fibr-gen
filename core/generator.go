@@ -18,26 +18,35 @@ func NewGenerator(ctx *GenerationContext) *Generator {
 	return &Generator{Context: ctx}
 }
 
+func replacePlaceholders(input string, params map[string]string) string {
+	output := input
+	for k, v := range params {
+		placeholder := fmt.Sprintf("${%s}", k)
+		output = strings.ReplaceAll(output, placeholder, v)
+	}
+	return output
+}
+
+func cloneParams(params map[string]string) map[string]string {
+	copied := make(map[string]string, len(params))
+	for k, v := range params {
+		copied[k] = v
+	}
+	return copied
+}
+
 // Generate executes the workbook generation process.
 func (g *Generator) Generate(templateRoot, outputRoot string) error {
 	wbConf := g.Context.WorkbookConfig
 	templatePath := filepath.Join(templateRoot, wbConf.Template)
 
 	// Replace parameters in output path (e.g. ${archivedate})
-	outputPathStr := wbConf.OutputDir
-	for k, v := range g.Context.Parameters {
-		placeholder := fmt.Sprintf("${%s}", k)
-		outputPathStr = strings.ReplaceAll(outputPathStr, placeholder, v)
-	}
+	outputPathStr := replacePlaceholders(wbConf.OutputDir, g.Context.Parameters)
 
 	outputPath := filepath.Join(outputRoot, outputPathStr)
 	if filepath.Ext(outputPath) == "" {
 		// Replace parameters in workbook name
-		name := wbConf.Name
-		for k, v := range g.Context.Parameters {
-			placeholder := fmt.Sprintf("${%s}", k)
-			name = strings.ReplaceAll(name, placeholder, v)
-		}
+		name := replacePlaceholders(wbConf.Name, g.Context.Parameters)
 		outputPath = filepath.Join(outputPath, name+".xlsx")
 	}
 
@@ -146,10 +155,7 @@ func (g *Generator) processDynamicSheet(f *excelize.File, sheetConf *config.Shee
 
 		// 3. Process Blocks for this new sheet
 		// We need to inject the parameter for this sheet (e.g. month=January)
-		sheetParams := make(map[string]string)
-		for k, v := range g.Context.Parameters {
-			sheetParams[k] = v
-		}
+		sheetParams := cloneParams(g.Context.Parameters)
 		sheetParams[sheetConf.ParamTag] = val
 
 		// Process each block in the NEW sheet
@@ -582,10 +588,7 @@ func (g *Generator) processExpandableBlockWithParams(f *excelize.File, sheetName
 	for r, rowItem := range rows {
 		for c, colItem := range cols {
 			// Construct parameters for this cell
-			cellParams := make(map[string]string)
-			for k, v := range g.Context.Parameters {
-				cellParams[k] = v
-			}
+			cellParams := cloneParams(g.Context.Parameters)
 
 			// Resolve Tag Name -> Column Name first!
 			getColName := func(vViewName, tagName string) string {
