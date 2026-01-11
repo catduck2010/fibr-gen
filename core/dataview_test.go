@@ -6,13 +6,13 @@ import (
 	"testing"
 )
 
-func TestVirtualView_GetDistinctTagValues(t *testing.T) {
+func TestDataView_GetDistinctLabelValues(t *testing.T) {
 	// Setup
-	conf := &config.VirtualViewConfig{
+	conf := &config.DataViewConfig{
 		Name: "test_view",
-		Tags: []config.TagConfig{
-			{Name: "tag_dept", Column: "DEPT"},
-			{Name: "tag_name", Column: "NAME"},
+		Labels: []config.LabelConfig{
+			{Name: "label_dept", Column: "DEPT"},
+			{Name: "label_name", Column: "NAME"},
 		},
 	}
 	data := []map[string]interface{}{
@@ -22,29 +22,29 @@ func TestVirtualView_GetDistinctTagValues(t *testing.T) {
 		{"DEPT": "D2", "NAME": "David"},
 		{"DEPT": "D3", "NAME": ""}, // Empty value
 	}
-	vv := NewVirtualView(conf, data)
+	vv := NewDataView(conf, data)
 
 	tests := []struct {
 		name    string
-		tagName string
+		label   string
 		want    []string
 		wantErr bool
 	}{
 		{
 			name:    "Distinct Depts",
-			tagName: "tag_dept",
+			label:   "label_dept",
 			want:    []string{"D1", "D2", "D3"},
 			wantErr: false,
 		},
 		{
 			name:    "Distinct Names (skip empty)",
-			tagName: "tag_name",
+			label:   "label_name",
 			want:    []string{"Alice", "Bob", "Charlie", "David"},
 			wantErr: false,
 		},
 		{
 			name:    "Unknown Tag",
-			tagName: "unknown_tag",
+			label:   "unknown_tag",
 			want:    nil,
 			wantErr: true,
 		},
@@ -52,25 +52,25 @@ func TestVirtualView_GetDistinctTagValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := vv.GetDistinctTagValues(tt.tagName)
+			got, err := vv.GetDistinctLabelValues(tt.label)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GetDistinctTagValues() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GetDistinctLabelValues() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("GetDistinctTagValues() got = %v, want %v", got, tt.want)
+				t.Errorf("GetDistinctLabelValues() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestVirtualView_Filter(t *testing.T) {
+func TestDataView_Filter(t *testing.T) {
 	// Setup
-	conf := &config.VirtualViewConfig{
+	conf := &config.DataViewConfig{
 		Name: "test_view",
-		Tags: []config.TagConfig{
-			{Name: "tag_dept", Column: "DEPT"},
-			{Name: "tag_age", Column: "AGE"},
+		Labels: []config.LabelConfig{
+			{Name: "label_dept", Column: "DEPT"},
+			{Name: "label_age", Column: "AGE"},
 		},
 	}
 	// Initial Data: 4 rows
@@ -89,28 +89,28 @@ func TestVirtualView_Filter(t *testing.T) {
 	}{
 		{
 			name:      "Filter by Dept D1",
-			params:    map[string]string{"tag_dept": "D1"},
+			params:    map[string]string{"label_dept": "D1"},
 			wantCount: 2,
 		},
 		{
 			name:      "Filter by Dept D1 AND Age 20",
-			params:    map[string]string{"tag_dept": "D1", "tag_age": "20"},
+			params:    map[string]string{"label_dept": "D1", "label_age": "20"},
 			wantCount: 1,
 			checkID:   1,
 		},
 		{
 			name:      "Filter by Age 20 (Mixed Depts)",
-			params:    map[string]string{"tag_age": "20"},
+			params:    map[string]string{"label_age": "20"},
 			wantCount: 2,
 		},
 		{
 			name:      "No Match",
-			params:    map[string]string{"tag_dept": "D3"},
+			params:    map[string]string{"label_dept": "D3"},
 			wantCount: 0,
 		},
 		{
 			name:      "Ignore Unmapped Param",
-			params:    map[string]string{"tag_dept": "D1", "unmapped_param": "xyz"},
+			params:    map[string]string{"label_dept": "D1", "unmapped_param": "xyz"},
 			wantCount: 2, // Should still match D1, ignoring unmapped
 		},
 		{
@@ -123,19 +123,19 @@ func TestVirtualView_Filter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a FRESH view for each test because Filter modifies data in-place
-			vv := NewVirtualView(conf, make([]map[string]interface{}, len(data)))
-			copy(vv.Data, data) // Shallow copy slice, elements are maps (ref). 
-			// Since Filter creates a new slice for vv.Data, the original 'data' slice is safe structure-wise,
+			v := NewDataView(conf, make([]map[string]interface{}, len(data)))
+			copy(v.Data, data) // Shallow copy slice, elements are maps (ref).
+			// Since Filter creates a new slice for v.Data, the original 'data' slice is safe structure-wise,
 			// but maps are shared. We don't modify map content, so it's fine.
-			
-			vv.Filter(tt.params)
 
-			if len(vv.Data) != tt.wantCount {
-				t.Errorf("Filter() count = %d, want %d", len(vv.Data), tt.wantCount)
+			v.Filter(tt.params)
+
+			if len(v.Data) != tt.wantCount {
+				t.Errorf("Filter() count = %d, want %d", len(v.Data), tt.wantCount)
 			}
 
-			if tt.checkID != 0 && len(vv.Data) == 1 {
-				if id, ok := vv.Data[0]["ID"].(int); ok {
+			if tt.checkID != 0 && len(v.Data) == 1 {
+				if id, ok := v.Data[0]["ID"].(int); ok {
 					if id != tt.checkID {
 						t.Errorf("Filter() matched ID = %d, want %d", id, tt.checkID)
 					}

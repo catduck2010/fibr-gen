@@ -92,22 +92,22 @@ func TestMatrixBlock_MergedHeader(t *testing.T) {
 
 	// 2. Setup Config
 	vAxisConf := config.BlockConfig{
-		Name:        "VAxis",
-		Type:        config.BlockTypeHeader,
-		Direction:   config.DirectionVertical,
-		Range:       config.CellRange{Ref: "A2:B2"}, // Merged Range
-		VViewName:   "v_items",
-		TagVariable: "item",
-		InsertAfter: true, // Expand Rows
+		Name:          "VAxis",
+		Type:          config.BlockTypeHeader,
+		Direction:     config.DirectionVertical,
+		Range:         config.CellRange{Ref: "A2:B2"}, // Merged Range
+		DataViewName:  "v_items",
+		LabelVariable: "item",
+		InsertAfter:   true, // Expand Rows
 	}
 
 	hAxisConf := config.BlockConfig{
-		Name:        "HAxis",
-		Type:        config.BlockTypeHeader,
-		Direction:   config.DirectionHorizontal,
-		Range:       config.CellRange{Ref: "C1:C1"},
-		VViewName:   "v_headers",
-		TagVariable: "header",
+		Name:          "HAxis",
+		Type:          config.BlockTypeHeader,
+		Direction:     config.DirectionHorizontal,
+		Range:         config.CellRange{Ref: "C1:C1"},
+		DataViewName:  "v_headers",
+		LabelVariable: "header",
 	}
 
 	templateBlock := config.BlockConfig{
@@ -132,14 +132,14 @@ func TestMatrixBlock_MergedHeader(t *testing.T) {
 	}
 
 	// 3. Mock Data
-	vViews := map[string]*config.VirtualViewConfig{
+	views := map[string]*config.DataViewConfig{
 		"v_items": {
-			Name: "v_items",
-			Tags: []config.TagConfig{{Name: "item", Column: "item_col"}},
+			Name:   "v_items",
+			Labels: []config.LabelConfig{{Name: "item", Column: "item_col"}},
 		},
 		"v_headers": {
-			Name: "v_headers",
-			Tags: []config.TagConfig{{Name: "header", Column: "header_col"}},
+			Name:   "v_headers",
+			Labels: []config.LabelConfig{{Name: "header", Column: "header_col"}},
 		},
 	}
 	mockData := map[string][]map[string]interface{}{
@@ -154,7 +154,7 @@ func TestMatrixBlock_MergedHeader(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(vViews)
+	provider := config.NewMemoryConfigRegistry(views)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 	adapter := &ExcelizeFile{file: f}
@@ -218,7 +218,7 @@ func TestMatrixBlock_MergedHeader(t *testing.T) {
 }
 
 // Helper to create Demo Report Template
-func setupTemplate_Demo(t *testing.T) *excelize.File {
+func setupTemplateDemo(t *testing.T) *excelize.File {
 	f := excelize.NewFile()
 	sheet := "Sheet1"
 	idx, _ := f.GetSheetIndex("Sheet1")
@@ -246,20 +246,20 @@ func TestEndToEnd_DemoReport(t *testing.T) {
 				Dynamic: false,
 				Blocks: []config.BlockConfig{
 					{
-						Name:      "TitleBlock",
-						Type:      config.BlockTypeValue,
-						Range:     config.CellRange{Ref: "A1:B1"},
-						VViewName: "v_title",
+						Name:         "TitleBlock",
+						Type:         config.BlockTypeValue,
+						Range:        config.CellRange{Ref: "A1:B1"},
+						DataViewName: "v_title",
 					},
 				},
 			},
 		},
 	}
 
-	vViews := map[string]*config.VirtualViewConfig{
+	views := map[string]*config.DataViewConfig{
 		"v_title": {
 			Name: "v_title",
-			Tags: []config.TagConfig{
+			Labels: []config.LabelConfig{
 				{Name: "report_date", Column: "RPT_DATE"},
 			},
 		},
@@ -272,11 +272,11 @@ func TestEndToEnd_DemoReport(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(vViews)
+	provider := config.NewMemoryConfigRegistry(views)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
-	f := setupTemplate_Demo(t)
+	f := setupTemplateDemo(t)
 	adapter := &ExcelizeFile{file: f}
 
 	block := &wbConfig.Sheets[0].Blocks[0]
@@ -297,7 +297,7 @@ func TestEndToEnd_DemoReport(t *testing.T) {
 }
 
 // Helper to create ValueBlock Template
-func setupTemplate_ValueBlock(t testing.TB) *excelize.File {
+func setupTemplateValueBlock(t testing.TB) *excelize.File {
 	f := excelize.NewFile()
 	sheet := "Sheet1"
 	idx, _ := f.GetSheetIndex("Sheet1")
@@ -325,21 +325,21 @@ func TestEndToEnd_ValueBlock(t *testing.T) {
 				Dynamic: false,
 				Blocks: []config.BlockConfig{
 					{
-						Name:      "EmployeeList",
-						Type:      config.BlockTypeValue,
-						Range:     config.CellRange{Ref: "A2:C2"},
-						VViewName: "employee_view",
-						Direction: config.DirectionVertical,
+						Name:         "EmployeeList",
+						Type:         config.BlockTypeValue,
+						Range:        config.CellRange{Ref: "A2:C2"},
+						DataViewName: "employee_view",
+						Direction:    config.DirectionVertical,
 					},
 				},
 			},
 		},
 	}
 
-	vViews := map[string]*config.VirtualViewConfig{
+	views := map[string]*config.DataViewConfig{
 		"employee_view": {
 			Name: "employee_view",
-			Tags: []config.TagConfig{
+			Labels: []config.LabelConfig{
 				{Name: "dept", Column: "DEPT_CD"},
 				{Name: "name", Column: "USER_NAME"},
 				{Name: "salary", Column: "SALARY"},
@@ -356,11 +356,11 @@ func TestEndToEnd_ValueBlock(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(vViews)
+	provider := config.NewMemoryConfigRegistry(views)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
-	f := setupTemplate_ValueBlock(t)
+	f := setupTemplateValueBlock(t)
 	adapter := &ExcelizeFile{file: f}
 
 	block := &wbConfig.Sheets[0].Blocks[0]
@@ -390,7 +390,7 @@ func TestEndToEnd_ValueBlock(t *testing.T) {
 }
 
 // Helper to create Cross Template
-func setupTemplate_Cross(t *testing.T) *excelize.File {
+func setupTemplateCross(t *testing.T) *excelize.File {
 	f := excelize.NewFile()
 	sheet := "Sheet1"
 	idx, _ := f.GetSheetIndex("Sheet1")
@@ -415,27 +415,27 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 
 	// SubBlocks
 	vAxisConf := config.BlockConfig{
-		Name:        "EmpAxis",
-		Type:        config.BlockTypeHeader,
-		Direction:   config.DirectionVertical,
-		Range:       config.CellRange{Ref: "A3:A3"},
-		VViewName:   "v_emp",
-		InsertAfter: true,
+		Name:         "EmpAxis",
+		Type:         config.BlockTypeHeader,
+		Direction:    config.DirectionVertical,
+		Range:        config.CellRange{Ref: "A3:A3"},
+		DataViewName: "v_emp",
+		InsertAfter:  true,
 	}
 
 	hAxisConf := config.BlockConfig{
-		Name:      "MonthAxis",
-		Type:      config.BlockTypeHeader,
-		Direction: config.DirectionHorizontal,
-		Range:     config.CellRange{Ref: "B2:B2"},
-		VViewName: "v_month",
+		Name:         "MonthAxis",
+		Type:         config.BlockTypeHeader,
+		Direction:    config.DirectionHorizontal,
+		Range:        config.CellRange{Ref: "B2:B2"},
+		DataViewName: "v_month",
 	}
 
 	dataBlock := config.BlockConfig{
-		Name:      "ScoreData",
-		Type:      config.BlockTypeValue,
-		Range:     config.CellRange{Ref: "B3:B3"},
-		VViewName: "v_full_perf",
+		Name:         "ScoreData",
+		Type:         config.BlockTypeValue,
+		Range:        config.CellRange{Ref: "B3:B3"},
+		DataViewName: "v_full_perf",
 	}
 
 	matrixBlock := config.BlockConfig{
@@ -459,18 +459,18 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 		},
 	}
 
-	vViews := map[string]*config.VirtualViewConfig{
+	views := map[string]*config.DataViewConfig{
 		"v_emp": {
-			Name: "v_emp",
-			Tags: []config.TagConfig{{Name: "emp_name", Column: "EMP_NAME"}},
+			Name:   "v_emp",
+			Labels: []config.LabelConfig{{Name: "emp_name", Column: "EMP_NAME"}},
 		},
 		"v_month": {
-			Name: "v_month",
-			Tags: []config.TagConfig{{Name: "month_label", Column: "MONTH_LABEL"}},
+			Name:   "v_month",
+			Labels: []config.LabelConfig{{Name: "month_label", Column: "MONTH_LABEL"}},
 		},
 		"v_full_perf": {
 			Name: "v_full_perf",
-			Tags: []config.TagConfig{
+			Labels: []config.LabelConfig{
 				{Name: "emp_id", Column: "EMP_ID"},
 				{Name: "emp_name", Column: "EMP_NAME"},
 				{Name: "month_id", Column: "MONTH_ID"},
@@ -498,11 +498,11 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(vViews)
+	provider := config.NewMemoryConfigRegistry(views)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
-	f := setupTemplate_Cross(t)
+	f := setupTemplateCross(t)
 	adapter := &ExcelizeFile{file: f}
 
 	if err := gen.processBlock(adapter, "Sheet1", &matrixBlock); err != nil {
@@ -547,7 +547,7 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 }
 
 // Helper to create ArchiveDate Template
-func setupTemplate_ArchiveDate(t *testing.T) *excelize.File {
+func setupTemplateArchiveDate(t *testing.T) *excelize.File {
 	f := excelize.NewFile()
 	sheet := "Sheet1"
 	idx, _ := f.GetSheetIndex("Sheet1")
@@ -578,20 +578,20 @@ func TestEndToEnd_ArchiveDate(t *testing.T) {
 				Name: "Sheet1",
 				Blocks: []config.BlockConfig{
 					{
-						Name:      "Data",
-						Type:      config.BlockTypeValue,
-						Range:     config.CellRange{Ref: "A2:B2"},
-						VViewName: "v_data",
+						Name:         "Data",
+						Type:         config.BlockTypeValue,
+						Range:        config.CellRange{Ref: "A2:B2"},
+						DataViewName: "v_data",
 					},
 				},
 			},
 		},
 	}
 
-	vViews := map[string]*config.VirtualViewConfig{
+	views := map[string]*config.DataViewConfig{
 		"v_data": {
 			Name: "v_data",
-			Tags: []config.TagConfig{
+			Labels: []config.LabelConfig{
 				{Name: "date", Column: "RPT_DATE"},
 				{Name: "value", Column: "VAL"},
 			},
@@ -606,7 +606,7 @@ func TestEndToEnd_ArchiveDate(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(vViews)
+	provider := config.NewMemoryConfigRegistry(views)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 
 	// Manually inject filter for test purpose
@@ -616,7 +616,7 @@ func TestEndToEnd_ArchiveDate(t *testing.T) {
 	}
 
 	gen := NewGenerator(ctx)
-	f := setupTemplate_ArchiveDate(t)
+	f := setupTemplateArchiveDate(t)
 	adapter := &ExcelizeFile{file: f}
 
 	block := &wbConfig.Sheets[0].Blocks[0]
@@ -652,10 +652,10 @@ func TestDynamicSheet_MatrixBlock_ParamInheritance(t *testing.T) {
 		Template: "dyn_template.xlsx",
 		Sheets: []config.SheetConfig{
 			{
-				Name:      "Sheet",
-				Dynamic:   true,
-				VViewName: "v_months",
-				ParamTag:  "month_id",
+				Name:         "Sheet",
+				Dynamic:      true,
+				DataViewName: "v_months",
+				ParamLabel:   "month_id",
 				Blocks: []config.BlockConfig{
 					{
 						Name:  "SalesMatrix",
@@ -663,27 +663,27 @@ func TestDynamicSheet_MatrixBlock_ParamInheritance(t *testing.T) {
 						Range: config.CellRange{Ref: "A1:B2"},
 						SubBlocks: []config.BlockConfig{
 							{
-								Name:        "ItemAxis",
-								Type:        config.BlockTypeHeader,
-								Direction:   config.DirectionVertical,
-								InsertAfter: true,
-								Range:       config.CellRange{Ref: "A2:A2"},
-								VViewName:   "v_items",
-								TagVariable: "item_id",
+								Name:          "ItemAxis",
+								Type:          config.BlockTypeHeader,
+								Direction:     config.DirectionVertical,
+								InsertAfter:   true,
+								Range:         config.CellRange{Ref: "A2:A2"},
+								DataViewName:  "v_items",
+								LabelVariable: "item_id",
 							},
 							{
-								Name:      "MetricAxis",
-								Type:      config.BlockTypeHeader,
-								Direction: config.DirectionHorizontal,
-								Range:     config.CellRange{Ref: "B1:B1"},
-								VViewName: "v_metrics", // Static "Revenue"
+								Name:         "MetricAxis",
+								Type:         config.BlockTypeHeader,
+								Direction:    config.DirectionHorizontal,
+								Range:        config.CellRange{Ref: "B1:B1"},
+								DataViewName: "v_metrics", // Static "Revenue"
 							},
 							{
-								Name:      "Data",
-								Type:      config.BlockTypeValue,
-								Range:     config.CellRange{Ref: "B2:B2"},
-								VViewName: "v_sales",
-								RowLimit:  1,
+								Name:         "Data",
+								Type:         config.BlockTypeValue,
+								Range:        config.CellRange{Ref: "B2:B2"},
+								DataViewName: "v_sales",
+								RowLimit:     1,
 							},
 						},
 					},
@@ -692,22 +692,22 @@ func TestDynamicSheet_MatrixBlock_ParamInheritance(t *testing.T) {
 		},
 	}
 
-	vViews := map[string]*config.VirtualViewConfig{
+	views := map[string]*config.DataViewConfig{
 		"v_months": {
-			Name: "v_months",
-			Tags: []config.TagConfig{{Name: "month_id", Column: "month_id"}},
+			Name:   "v_months",
+			Labels: []config.LabelConfig{{Name: "month_id", Column: "month_id"}},
 		},
 		"v_items": {
-			Name: "v_items",
-			Tags: []config.TagConfig{{Name: "item_id", Column: "item_id"}},
+			Name:   "v_items",
+			Labels: []config.LabelConfig{{Name: "item_id", Column: "item_id"}},
 		},
 		"v_metrics": {
-			Name: "v_metrics",
-			Tags: []config.TagConfig{{Name: "metric", Column: "metric"}},
+			Name:   "v_metrics",
+			Labels: []config.LabelConfig{{Name: "metric", Column: "metric"}},
 		},
 		"v_sales": {
 			Name: "v_sales",
-			Tags: []config.TagConfig{
+			Labels: []config.LabelConfig{
 				{Name: "month_id", Column: "month_id"},
 				{Name: "item_id", Column: "item_id"},
 				{Name: "revenue", Column: "revenue"},
@@ -733,7 +733,7 @@ func TestDynamicSheet_MatrixBlock_ParamInheritance(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(vViews)
+	provider := config.NewMemoryConfigRegistry(views)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
@@ -792,21 +792,21 @@ func BenchmarkValueBlock_Insert50k(b *testing.B) {
 				Name: "Sheet1",
 				Blocks: []config.BlockConfig{
 					{
-						Name:      "EmployeeList",
-						Type:      config.BlockTypeValue,
-						Range:     config.CellRange{Ref: "A2:C2"},
-						VViewName: "employee_view",
-						Direction: config.DirectionVertical,
+						Name:         "EmployeeList",
+						Type:         config.BlockTypeValue,
+						Range:        config.CellRange{Ref: "A2:C2"},
+						DataViewName: "employee_view",
+						Direction:    config.DirectionVertical,
 					},
 				},
 			},
 		},
 	}
 
-	vViews := map[string]*config.VirtualViewConfig{
+	views := map[string]*config.DataViewConfig{
 		"employee_view": {
 			Name: "employee_view",
-			Tags: []config.TagConfig{
+			Labels: []config.LabelConfig{
 				{Name: "dept", Column: "DEPT_CD"},
 				{Name: "name", Column: "USER_NAME"},
 				{Name: "salary", Column: "SALARY"},
@@ -819,7 +819,7 @@ func BenchmarkValueBlock_Insert50k(b *testing.B) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(vViews)
+	provider := config.NewMemoryConfigRegistry(views)
 
 	// Benchmark Loop
 	saved := false
@@ -827,7 +827,7 @@ func BenchmarkValueBlock_Insert50k(b *testing.B) {
 		b.StopTimer() // Pause for setup
 		ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 		gen := NewGenerator(ctx)
-		f := setupTemplate_ValueBlock(b)
+		f := setupTemplateValueBlock(b)
 		adapter := &ExcelizeFile{file: f}
 		block := &wbConfig.Sheets[0].Blocks[0]
 		b.StartTimer() // Start measuring

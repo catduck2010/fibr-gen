@@ -15,7 +15,7 @@ func TestLoadConfigBundle(t *testing.T) {
   name: "Report"
   template: "report.xlsx"
   outputDir: "out"
-virtualViews:
+dataViews:
   - name: "view1"
     tags:
       - name: "id"
@@ -49,7 +49,7 @@ func TestLoadAllConfigs(t *testing.T) {
 	dir := t.TempDir()
 
 	workbookDir := filepath.Join(dir, "workbooks")
-	vviewDir := filepath.Join(dir, "vviews")
+	vviewDir := filepath.Join(dir, "dataViews")
 	dataSourceDir := filepath.Join(dir, "datasources")
 	for _, d := range []string{workbookDir, vviewDir, dataSourceDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {

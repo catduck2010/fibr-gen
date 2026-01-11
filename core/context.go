@@ -19,13 +19,13 @@ type GenerationContext struct {
 	WorkbookConfig *config.WorkbookConfig
 	Parameters     map[string]string
 	Fetcher        DataFetcher
-	ConfigProvider config.ConfigProvider
-	// Cache for loaded VirtualViews (to avoid re-fetching or re-creating)
-	LoadedViews map[string]*VirtualView
+	ConfigProvider config.Provider
+	// Cache for loaded DataViews (to avoid re-fetching or re-creating)
+	LoadedViews map[string]*DataView
 }
 
 // NewGenerationContext creates a new context.
-func NewGenerationContext(wb *config.WorkbookConfig, provider config.ConfigProvider, fetcher DataFetcher, params map[string]string) *GenerationContext {
+func NewGenerationContext(wb *config.WorkbookConfig, provider config.Provider, fetcher DataFetcher, params map[string]string) *GenerationContext {
 	// Merge params
 	mergedParams := make(map[string]string)
 	if wb.Parameters != nil {
@@ -58,19 +58,16 @@ func NewGenerationContext(wb *config.WorkbookConfig, provider config.ConfigProvi
 		Parameters:     mergedParams,
 		Fetcher:        fetcher,
 		ConfigProvider: provider,
-		LoadedViews:    make(map[string]*VirtualView),
+		LoadedViews:    make(map[string]*DataView),
 	}
 }
 
-// GetVirtualView resolves and loads a VirtualView by name.
+// GetDataView resolves and loads a DataView by name.
 // It uses caching to ensure the same view (and its data) is reused if needed,
-// but note that VView is mutable (can be filtered).
+// but note that DataView is mutable (can be filtered).
 // For distinct operations, we typically need a fresh copy or the raw data.
-// In this design, GetVirtualView returns a NEW instance populated with data,
-// or we should manage lifecycle carefully.
-// C# logic: Builder creates a new VView.
-// Here, we fetch data on demand.
-func (ctx *GenerationContext) GetVirtualView(viewName string) (*VirtualView, error) {
+// In this design, GetDataView returns a NEW instance populated with data,
+func (ctx *GenerationContext) GetDataView(viewName string) (*DataView, error) {
 	// 1. Check Cache
 	if cachedView, ok := ctx.LoadedViews[viewName]; ok {
 		// Return a DEEP COPY to ensure isolation
@@ -79,7 +76,7 @@ func (ctx *GenerationContext) GetVirtualView(viewName string) (*VirtualView, err
 	}
 
 	// 2. Resolve Config
-	conf, err := ctx.ConfigProvider.GetVirtualViewConfig(viewName)
+	conf, err := ctx.ConfigProvider.GetDataViewConfig(viewName)
 	if err != nil {
 		return nil, err
 	}
@@ -92,28 +89,28 @@ func (ctx *GenerationContext) GetVirtualView(viewName string) (*VirtualView, err
 		return nil, err
 	}
 
-	// 4. Create and Cache VView
+	// 4. Create and Cache DataView
 	// This instance holds the ORIGINAL full data
-	vv := NewVirtualView(conf, data)
+	vv := NewDataView(conf, data)
 	ctx.LoadedViews[viewName] = vv
 
 	// 5. Return Copy
 	return vv.Copy(), nil
 }
 
-// GetBlockData fetches data for a specific block based on its VView.
+// GetBlockData fetches data for a specific block based on its DataView.
 func (ctx *GenerationContext) GetBlockData(block *config.BlockConfig) ([]map[string]interface{}, error) {
 	return ctx.GetBlockDataWithParams(block, ctx.Parameters)
 }
 
 // GetBlockDataWithParams fetches data with custom parameters (for MatrixBlock iteration).
 func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, params map[string]string) ([]map[string]interface{}, error) {
-	if block.VViewName == "" {
+	if block.DataViewName == "" {
 		return nil, nil // No data source
 	}
 
-	// Load VView
-	vv, err := ctx.GetVirtualView(block.VViewName)
+	// Load DataView
+	vv, err := ctx.GetDataView(block.DataViewName)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +118,7 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 	// Apply Params Filter (if any specific to this block/context)
 	// The Fetcher might have already filtered by GLOBAL params.
 	// But `params` here might contain loop variables (e.g. emp_id=E001).
-	// So we should filter the VView memory data.
+	// So we should filter the DataView memory data.
 	vv.Filter(params)
 
 	// Apply Distinct logic if it's an Axis Block
@@ -149,7 +146,7 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 
 	slog.Debug("Block Fetched",
 		"block", block.Name+blockTypeStr,
-		"vview", block.VViewName,
+		"DataView", block.DataViewName,
 		"params", params,
 		"rows", len(finalData),
 	)
@@ -162,18 +159,18 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 }
 
 // distinctData filters the data to unique values based on the block's tag configuration.
-func (ctx *GenerationContext) distinctData(data []map[string]interface{}, block *config.BlockConfig, vv *VirtualView) ([]map[string]interface{}, error) {
+func (ctx *GenerationContext) distinctData(data []map[string]interface{}, block *config.BlockConfig, vv *DataView) ([]map[string]interface{}, error) {
 	// Identify the key tag for this axis.
-	keyTag := block.TagVariable
+	keyTag := block.LabelVariable
 	if keyTag == "" {
-		if len(vv.Config.Tags) > 0 {
-			keyTag = vv.Config.Tags[0].Name
+		if len(vv.Config.Labels) > 0 {
+			keyTag = vv.Config.Labels[0].Name
 		} else {
 			return data, nil // No tags to distinct by
 		}
 	}
 
-	// Use VView's mapping
+	// Use DataView's mapping
 	colName, ok := vv.TagMapping[keyTag]
 	if !ok {
 		return data, nil

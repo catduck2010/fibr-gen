@@ -2,13 +2,13 @@ package config
 
 import "testing"
 
-func TestMemoryConfigRegistry_GetVirtualViewConfig(t *testing.T) {
-	vviews := map[string]*VirtualViewConfig{
+func TestMemoryConfigRegistry_GetDataViewConfig(t *testing.T) {
+	dataViews := map[string]*DataViewConfig{
 		"view1": {Name: "view1"},
 	}
-	registry := NewMemoryConfigRegistry(vviews)
+	registry := NewMemoryConfigRegistry(dataViews)
 
-	conf, err := registry.GetVirtualViewConfig("view1")
+	conf, err := registry.GetDataViewConfig("view1")
 	if err != nil {
 		t.Fatalf("expected config, got error: %v", err)
 	}
@@ -17,9 +17,9 @@ func TestMemoryConfigRegistry_GetVirtualViewConfig(t *testing.T) {
 	}
 }
 
-func TestMemoryConfigRegistry_GetVirtualViewConfig_NotFound(t *testing.T) {
-	registry := NewMemoryConfigRegistry(map[string]*VirtualViewConfig{})
-	if _, err := registry.GetVirtualViewConfig("missing"); err == nil {
+func TestMemoryConfigRegistry_GetDataViewConfig_NotFound(t *testing.T) {
+	registry := NewMemoryConfigRegistry(map[string]*DataViewConfig{})
+	if _, err := registry.GetDataViewConfig("missing"); err == nil {
 		t.Fatalf("expected error for missing config")
 	}
 }

@@ -51,14 +51,14 @@ func TestNewGenerationContext_ArchiveRule(t *testing.T) {
 	}
 }
 
-func TestGenerationContext_GetVirtualViewCaching(t *testing.T) {
-	vviews := map[string]*config.VirtualViewConfig{
+func TestGenerationContext_GetDataViewCaching(t *testing.T) {
+	views := map[string]*config.DataViewConfig{
 		"view1": {
-			Name: "view1",
-			Tags: []config.TagConfig{{Name: "id", Column: "ID"}},
+			Name:   "view1",
+			Labels: []config.LabelConfig{{Name: "id", Column: "ID"}},
 		},
 	}
-	registry := config.NewMemoryConfigRegistry(vviews)
+	registry := config.NewMemoryConfigRegistry(views)
 	fetcher := &countingFetcher{
 		data: map[string][]map[string]interface{}{
 			"view1": {{"ID": "1"}},
@@ -66,11 +66,11 @@ func TestGenerationContext_GetVirtualViewCaching(t *testing.T) {
 	}
 
 	ctx := NewGenerationContext(&config.WorkbookConfig{}, registry, fetcher, nil)
-	if _, err := ctx.GetVirtualView("view1"); err != nil {
-		t.Fatalf("GetVirtualView error: %v", err)
+	if _, err := ctx.GetDataView("view1"); err != nil {
+		t.Fatalf("GetDataView error: %v", err)
 	}
-	if _, err := ctx.GetVirtualView("view1"); err != nil {
-		t.Fatalf("GetVirtualView error: %v", err)
+	if _, err := ctx.GetDataView("view1"); err != nil {
+		t.Fatalf("GetDataView error: %v", err)
 	}
 	if fetcher.calls != 1 {
 		t.Fatalf("fetcher calls = %d, want 1", fetcher.calls)

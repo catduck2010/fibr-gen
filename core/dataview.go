@@ -6,46 +6,44 @@ import (
 	"sort"
 )
 
-// VirtualView represents a data view with tag mapping capabilities.
-// It mimics the VView class in C#.
-type VirtualView struct {
-	Config     *config.VirtualViewConfig
+// DataView represents a data view with tag mapping capabilities.
+type DataView struct {
+	Config     *config.DataViewConfig
 	Data       []map[string]interface{} // The actual data table (DataTable in C#)
 	TagMapping map[string]string        // Tag Name -> Column Name
 }
 
-// NewVirtualView creates a new VirtualView instance.
-func NewVirtualView(conf *config.VirtualViewConfig, data []map[string]interface{}) *VirtualView {
+// NewDataView creates a new DataView instance.
+func NewDataView(conf *config.DataViewConfig, data []map[string]interface{}) *DataView {
 	mapping := make(map[string]string)
-	for _, t := range conf.Tags {
+	for _, t := range conf.Labels {
 		mapping[t.Name] = t.Column
 	}
-	return &VirtualView{
+	return &DataView{
 		Config:     conf,
 		Data:       data,
 		TagMapping: mapping,
 	}
 }
 
-// GetDistinctTagValues returns all unique values for a given tag.
-// Corresponds to VView.GetDistinctTagValues in C#.
-func (vv *VirtualView) GetDistinctTagValues(tagName string) ([]string, error) {
-	colName, ok := vv.TagMapping[tagName]
+// GetDistinctLabelValues returns all unique values for a given tag.
+func (v *DataView) GetDistinctLabelValues(label string) ([]string, error) {
+	colName, ok := v.TagMapping[label]
 	if !ok {
 		// Fallback: if tag not found, check if it's the column name itself?
-		// Or try to find if tagName matches any column directly?
+		// Or try to find if label matches any column directly?
 		// For strict compliance, we should error or return empty.
 		// Let's try to match by name first if mapping fails (for flexibility)
-		colName = tagName
+		colName = label
 		// Check if colName exists in data keys?
 		// Actually, let's stick to strict mapping first.
-		return nil, fmt.Errorf("tag '%s' not found in view '%s'", tagName, vv.Config.Name)
+		return nil, fmt.Errorf("tag '%s' not found in view '%s'", label, v.Config.Name)
 	}
 
 	seen := make(map[string]struct{})
 	var result []string
 
-	for _, row := range vv.Data {
+	for _, row := range v.Data {
 		if val, ok := row[colName]; ok {
 			strVal := fmt.Sprintf("%v", val)
 			if strVal == "" {
@@ -64,19 +62,18 @@ func (vv *VirtualView) GetDistinctTagValues(tagName string) ([]string, error) {
 }
 
 // Filter filters the internal data based on a parameter dictionary.
-// Corresponds to VView.Filter in C#.
-func (vv *VirtualView) Filter(params map[string]string) {
+func (v *DataView) Filter(params map[string]string) {
 	if len(params) == 0 {
 		return
 	}
 
 	var filtered []map[string]interface{}
 
-	for _, row := range vv.Data {
+	for _, row := range v.Data {
 		match := true
 		for paramKey, paramVal := range params {
 			// Find column for this paramKey (which acts as a tag)
-			colName, ok := vv.TagMapping[paramKey]
+			colName, ok := v.TagMapping[paramKey]
 			if !ok {
 				continue // Parameter not mapped to a tag in this view, ignore
 			}
@@ -93,21 +90,21 @@ func (vv *VirtualView) Filter(params map[string]string) {
 		}
 	}
 
-	vv.Data = filtered
+	v.Data = filtered
 }
 
 // GetRowCount returns the number of rows.
-func (vv *VirtualView) GetRowCount() int {
-	return len(vv.Data)
+func (v *DataView) GetRowCount() int {
+	return len(v.Data)
 }
 
-// Copy creates a deep copy of the VirtualView.
+// Copy creates a deep copy of the DataView.
 // The Data slice is duplicated so that modifications (like Filter) on the copy
 // do not affect the original. Config and TagMapping are shared as they are read-only.
-func (vv *VirtualView) Copy() *VirtualView {
+func (v *DataView) Copy() *DataView {
 	// Deep copy data
-	newData := make([]map[string]interface{}, len(vv.Data))
-	for i, row := range vv.Data {
+	newData := make([]map[string]interface{}, len(v.Data))
+	for i, row := range v.Data {
 		// Map is a reference type, so we need to copy the map too if we modify values inside it.
 		// However, usually we only filter *rows* (subset of slice), not modify *cell values*.
 		// But for safety, let's copy the map.
@@ -118,9 +115,9 @@ func (vv *VirtualView) Copy() *VirtualView {
 		newData[i] = newRow
 	}
 
-	return &VirtualView{
-		Config:     vv.Config,
+	return &DataView{
+		Config:     v.Config,
 		Data:       newData,
-		TagMapping: vv.TagMapping, // Shared reference is fine for read-only map
+		TagMapping: v.TagMapping, // Shared reference is fine for read-only map
 	}
 }

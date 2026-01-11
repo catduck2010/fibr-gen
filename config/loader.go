@@ -23,14 +23,14 @@ func LoadWorkbookConfig(path string) (*WorkbookConfig, error) {
 	return &cfg, nil
 }
 
-// LoadVirtualViewConfig loads a virtual view configuration from a YAML file.
-func LoadVirtualViewConfig(path string) (*VirtualViewConfig, error) {
+// LoadDataViewConfig loads a virtual view configuration from a YAML file.
+func LoadDataViewConfig(path string) (*DataViewConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read virtual view config file: %w", err)
 	}
 
-	var cfg VirtualViewConfig
+	var cfg DataViewConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse virtual view config: %w", err)
 	}
@@ -54,9 +54,9 @@ func LoadDataSourceConfig(path string) (*DataSourceConfig, error) {
 }
 
 type BundleConfig struct {
-	Workbook     *WorkbookConfig      `yaml:"workbook"`
-	VirtualViews []*VirtualViewConfig `yaml:"virtualViews"`
-	DataSources  []*DataSourceConfig  `yaml:"dataSources"`
+	Workbook    *WorkbookConfig     `yaml:"workbook"`
+	DataViews   []*DataViewConfig   `yaml:"dataViews"`
+	DataSources []*DataSourceConfig `yaml:"dataSources"`
 }
 
 type DataSourcesBundle struct {
@@ -65,7 +65,7 @@ type DataSourcesBundle struct {
 
 // LoadConfigBundle loads a single configuration bundle from a YAML file.
 // It includes one workbook, and optional virtual views and data sources.
-func LoadConfigBundle(path string) (*WorkbookConfig, map[string]*VirtualViewConfig, map[string]*DataSourceConfig, error) {
+func LoadConfigBundle(path string) (*WorkbookConfig, map[string]*DataViewConfig, map[string]*DataSourceConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to read config bundle: %w", err)
@@ -80,15 +80,15 @@ func LoadConfigBundle(path string) (*WorkbookConfig, map[string]*VirtualViewConf
 		return nil, nil, nil, fmt.Errorf("config bundle missing workbook")
 	}
 
-	vViews := make(map[string]*VirtualViewConfig)
-	for _, view := range bundle.VirtualViews {
+	views := make(map[string]*DataViewConfig)
+	for _, view := range bundle.DataViews {
 		if view == nil || view.Name == "" {
 			return nil, nil, nil, fmt.Errorf("virtual view config missing name")
 		}
-		if _, exists := vViews[view.Name]; exists {
+		if _, exists := views[view.Name]; exists {
 			return nil, nil, nil, fmt.Errorf("duplicate virtual view name: %s", view.Name)
 		}
-		vViews[view.Name] = view
+		views[view.Name] = view
 	}
 
 	dataSources := make(map[string]*DataSourceConfig)
@@ -102,7 +102,7 @@ func LoadConfigBundle(path string) (*WorkbookConfig, map[string]*VirtualViewConf
 		dataSources[source.Name] = source
 	}
 
-	return bundle.Workbook, vViews, dataSources, nil
+	return bundle.Workbook, views, dataSources, nil
 }
 
 // LoadDataSourcesBundle loads data source configurations from a YAML file.
@@ -140,13 +140,13 @@ func LoadDataSourcesBundle(path string) (map[string]*DataSourceConfig, error) {
 //
 //	workbooks/
 //	  wb1.yaml
-//	vviews/
+//	dataViews/
 //	  vv1.yaml
 //	datasources/
 //	  ds1.yaml
-func LoadAllConfigs(rootDir string) (map[string]*WorkbookConfig, map[string]*VirtualViewConfig, map[string]*DataSourceConfig, error) {
+func LoadAllConfigs(rootDir string) (map[string]*WorkbookConfig, map[string]*DataViewConfig, map[string]*DataSourceConfig, error) {
 	workbooks := make(map[string]*WorkbookConfig)
-	vViews := make(map[string]*VirtualViewConfig)
+	views := make(map[string]*DataViewConfig)
 	dataSources := make(map[string]*DataSourceConfig)
 
 	// Helper to walk and load
@@ -182,17 +182,17 @@ func LoadAllConfigs(rootDir string) (map[string]*WorkbookConfig, map[string]*Vir
 		return nil, nil, nil, fmt.Errorf("loading datasources: %w", err)
 	}
 
-	// Load VirtualViews
-	err = walkDir("vviews", func(f string) error {
-		cfg, err := LoadVirtualViewConfig(f)
+	// Load DataViews
+	err = walkDir("dataViews", func(f string) error {
+		cfg, err := LoadDataViewConfig(f)
 		if err != nil {
 			return err
 		}
-		vViews[cfg.Name] = cfg
+		views[cfg.Name] = cfg
 		return nil
 	})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("loading vviews: %w", err)
+		return nil, nil, nil, fmt.Errorf("loading dataViews: %w", err)
 	}
 
 	// Load Workbooks
@@ -208,5 +208,5 @@ func LoadAllConfigs(rootDir string) (map[string]*WorkbookConfig, map[string]*Vir
 		return nil, nil, nil, fmt.Errorf("loading workbooks: %w", err)
 	}
 
-	return workbooks, vViews, dataSources, nil
+	return workbooks, views, dataSources, nil
 }

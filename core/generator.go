@@ -109,15 +109,15 @@ func (g *Generator) processBlock(f ExcelFile, sheetName string, block *config.Bl
 
 func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConfig) error {
 	// 1. Get Distinct Tag Values (e.g. Month Names)
-	// Need to find VView Config
-	vViewConf, err := g.Context.ConfigProvider.GetVirtualViewConfig(sheetConf.VViewName)
+	// Need to find DataView Config
+	conf, err := g.Context.ConfigProvider.GetDataViewConfig(sheetConf.DataViewName)
 	if err != nil {
-		return fmt.Errorf("virtual view not found for dynamic sheet: %s", sheetConf.VViewName)
+		return fmt.Errorf("virtual view not found for dynamic sheet: %s", sheetConf.DataViewName)
 	}
 
-	// Fetch data to get distinct values for ParamTag
+	// Fetch data to get distinct values for ParamLabel
 	// We need all rows first
-	data, err := g.Context.Fetcher.Fetch(vViewConf.Name, g.Context.Parameters)
+	data, err := g.Context.Fetcher.Fetch(conf.Name, g.Context.Parameters)
 	if err != nil {
 		return fmt.Errorf("failed to fetch dynamic sheet data: %w", err)
 	}
@@ -126,16 +126,16 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 	distinctValues := make(map[string]struct{})
 	var values []string
 
-	// Find which column maps to ParamTag
+	// Find which column maps to ParamLabel
 	var paramColumn string
-	for _, tag := range vViewConf.Tags {
-		if tag.Name == sheetConf.ParamTag {
+	for _, tag := range conf.Labels {
+		if tag.Name == sheetConf.ParamLabel {
 			paramColumn = tag.Column
 			break
 		}
 	}
 	if paramColumn == "" {
-		return fmt.Errorf("param tag '%s' not found in virtual view %s", sheetConf.ParamTag, sheetConf.VViewName)
+		return fmt.Errorf("param tag '%s' not found in virtual view %s", sheetConf.ParamLabel, sheetConf.DataViewName)
 	}
 
 	for _, row := range data {
@@ -174,7 +174,7 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 		// 3. Process Blocks for this new sheet
 		// We need to inject the parameter for this sheet (e.g. month=January)
 		sheetParams := cloneParams(g.Context.Parameters)
-		sheetParams[sheetConf.ParamTag] = val
+		sheetParams[sheetConf.ParamLabel] = val
 
 		// Process each block in the NEW sheet
 		for _, block := range sheetConf.Blocks {
@@ -219,7 +219,6 @@ func (g *Generator) processBlockWithParams(f ExcelFile, sheetName string, block 
 	}
 }
 
-// Rename processMatrixBlock to processMatrixBlockWithParams and update usage
 func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
 	// ... (content of processMatrixBlock but using params instead of g.Context.Parameters)
 	// We need to change g.Context.GetBlockData(vAxis) to GetBlockDataWithParams(vAxis, params)
@@ -401,15 +400,15 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 
 	// ... (Axis Param Key Logic) ...
 	getAxisParamKey := func(axis *config.BlockConfig) (string, error) {
-		if axis.TagVariable != "" {
-			return axis.TagVariable, nil
+		if axis.LabelVariable != "" {
+			return axis.LabelVariable, nil
 		}
-		conf, err := g.Context.ConfigProvider.GetVirtualViewConfig(axis.VViewName)
+		conf, err := g.Context.ConfigProvider.GetDataViewConfig(axis.DataViewName)
 		if err != nil {
 			return "", err
 		}
-		if len(conf.Tags) > 0 {
-			return conf.Tags[0].Name, nil
+		if len(conf.Labels) > 0 {
+			return conf.Labels[0].Name, nil
 		}
 		return "", fmt.Errorf("cannot determine parameter key for axis %s", axis.Name)
 	}
@@ -437,12 +436,12 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 			cellParams := cloneParams(params)
 
 			// Resolve Tag Name -> Column Name first!
-			getColName := func(vViewName, tagName string) string {
-				conf, err := g.Context.ConfigProvider.GetVirtualViewConfig(vViewName)
+			getColName := func(dataViewName, tagName string) string {
+				conf, err := g.Context.ConfigProvider.GetDataViewConfig(dataViewName)
 				if err != nil {
 					return ""
 				}
-				for _, t := range conf.Tags {
+				for _, t := range conf.Labels {
 					if t.Name == tagName {
 						return t.Column
 					}
@@ -450,14 +449,14 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 				return ""
 			}
 
-			vCol := getColName(vAxis.VViewName, vKey)
+			vCol := getColName(vAxis.DataViewName, vKey)
 			if vCol != "" {
 				if val, ok := rowItem[vCol]; ok {
 					cellParams[vKey] = fmt.Sprintf("%v", val)
 				}
 			}
 
-			hCol := getColName(hAxis.VViewName, hKey)
+			hCol := getColName(hAxis.DataViewName, hKey)
 			if hCol != "" {
 				if val, ok := colItem[hCol]; ok {
 					cellParams[hKey] = fmt.Sprintf("%v", val)
@@ -744,9 +743,9 @@ func (g *Generator) fillTemplate(f ExcelFile, sheetName string, cache *TemplateC
 	// Replacement map
 	rep := make(map[string]interface{})
 	if data != nil {
-		vv, err := g.Context.ConfigProvider.GetVirtualViewConfig(cache.Block.VViewName)
+		vv, err := g.Context.ConfigProvider.GetDataViewConfig(cache.Block.DataViewName)
 		if err == nil {
-			for _, t := range vv.Tags {
+			for _, t := range vv.Labels {
 				if v, ok := data[t.Column]; ok {
 					rep[t.Name] = v
 				}

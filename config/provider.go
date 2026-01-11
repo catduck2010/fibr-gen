@@ -2,26 +2,26 @@ package config
 
 import "fmt"
 
-// ConfigProvider defines the interface for retrieving configurations.
-type ConfigProvider interface {
-	GetVirtualViewConfig(name string) (*VirtualViewConfig, error)
+// Provider defines the interface for retrieving configurations.
+type Provider interface {
+	GetDataViewConfig(name string) (*DataViewConfig, error)
 }
 
-// MemoryConfigRegistry implements ConfigProvider using an in-memory map.
+// MemoryConfigRegistry implements Provider using an in-memory map.
 type MemoryConfigRegistry struct {
-	vviews map[string]*VirtualViewConfig
+	dataViews map[string]*DataViewConfig
 }
 
 // NewMemoryConfigRegistry creates a new registry with the given configurations.
-func NewMemoryConfigRegistry(vviews map[string]*VirtualViewConfig) *MemoryConfigRegistry {
+func NewMemoryConfigRegistry(v map[string]*DataViewConfig) *MemoryConfigRegistry {
 	return &MemoryConfigRegistry{
-		vviews: vviews,
+		dataViews: v,
 	}
 }
 
-// GetVirtualViewConfig retrieves a VirtualViewConfig by name.
-func (r *MemoryConfigRegistry) GetVirtualViewConfig(name string) (*VirtualViewConfig, error) {
-	if conf, ok := r.vviews[name]; ok {
+// GetDataViewConfig retrieves a DataViewConfig by name.
+func (r *MemoryConfigRegistry) GetDataViewConfig(name string) (*DataViewConfig, error) {
+	if conf, ok := r.dataViews[name]; ok {
 		return conf, nil
 	}
 	return nil, fmt.Errorf("virtual view config not found: %s", name)
