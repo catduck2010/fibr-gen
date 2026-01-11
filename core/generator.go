@@ -108,7 +108,7 @@ func (g *Generator) processBlock(f ExcelFile, sheetName string, block *config.Bl
 }
 
 func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConfig) error {
-	// 1. Get Distinct Tag Values (e.g. Month Names)
+	// 1. Get Distinct Label Values (e.g. Month Names)
 	// Need to find DataView Config
 	conf, err := g.Context.ConfigProvider.GetDataViewConfig(sheetConf.DataViewName)
 	if err != nil {
@@ -128,14 +128,14 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 
 	// Find which column maps to ParamLabel
 	var paramColumn string
-	for _, tag := range conf.Labels {
-		if tag.Name == sheetConf.ParamLabel {
-			paramColumn = tag.Column
+	for _, label := range conf.Labels {
+		if label.Name == sheetConf.ParamLabel {
+			paramColumn = label.Column
 			break
 		}
 	}
 	if paramColumn == "" {
-		return fmt.Errorf("param tag '%s' not found in virtual view %s", sheetConf.ParamLabel, sheetConf.DataViewName)
+		return fmt.Errorf("param label '%s' not found in virtual view %s", sheetConf.ParamLabel, sheetConf.DataViewName)
 	}
 
 	for _, row := range data {
@@ -435,21 +435,21 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 			// Construct parameters for this cell
 			cellParams := cloneParams(params)
 
-			// Resolve Tag Name -> Column Name first!
-			getColName := func(dataViewName, tagName string) string {
+			// Resolve Label Name -> Column Name first!
+			getLabelName := func(dataViewName, labelName string) string {
 				conf, err := g.Context.ConfigProvider.GetDataViewConfig(dataViewName)
 				if err != nil {
 					return ""
 				}
 				for _, t := range conf.Labels {
-					if t.Name == tagName {
+					if t.Name == labelName {
 						return t.Column
 					}
 				}
 				return ""
 			}
 
-			vCol := getColName(vAxis.DataViewName, vKey)
+			vCol := getLabelName(vAxis.DataViewName, vKey)
 			if vCol != "" {
 				if val, ok := rowItem[vCol]; ok {
 					cellParams[vKey] = fmt.Sprintf("%v", val)
@@ -662,7 +662,7 @@ func (g *Generator) processValueBlockWithParams(f ExcelFile, sheetName string, b
 	return g.fillBlockData(f, sheetName, block, data)
 }
 
-// CellData fillBlockData fills a block with data, handling template caching and tag replacement.
+// CellData fillBlockData fills a block with data, handling template caching and label replacement.
 // It assumes any necessary expansion (inserting rows/cols) has already been done.
 type CellData struct {
 	Val   string

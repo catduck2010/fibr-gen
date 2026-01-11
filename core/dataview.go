@@ -6,11 +6,11 @@ import (
 	"sort"
 )
 
-// DataView represents a data view with tag mapping capabilities.
+// DataView represents a data view with label mapping capabilities.
 type DataView struct {
-	Config     *config.DataViewConfig
-	Data       []map[string]interface{} // The actual data table (DataTable in C#)
-	TagMapping map[string]string        // Tag Name -> Column Name
+	Config       *config.DataViewConfig
+	Data         []map[string]interface{} // The actual data table (DataTable in C#)
+	LabelMapping map[string]string        // label Name -> Column Name
 }
 
 // NewDataView creates a new DataView instance.
@@ -20,24 +20,24 @@ func NewDataView(conf *config.DataViewConfig, data []map[string]interface{}) *Da
 		mapping[t.Name] = t.Column
 	}
 	return &DataView{
-		Config:     conf,
-		Data:       data,
-		TagMapping: mapping,
+		Config:       conf,
+		Data:         data,
+		LabelMapping: mapping,
 	}
 }
 
-// GetDistinctLabelValues returns all unique values for a given tag.
+// GetDistinctLabelValues returns all unique values for a given label.
 func (v *DataView) GetDistinctLabelValues(label string) ([]string, error) {
-	colName, ok := v.TagMapping[label]
+	colName, ok := v.LabelMapping[label]
 	if !ok {
-		// Fallback: if tag not found, check if it's the column name itself?
+		// Fallback: if label not found, check if it's the column name itself?
 		// Or try to find if label matches any column directly?
 		// For strict compliance, we should error or return empty.
 		// Let's try to match by name first if mapping fails (for flexibility)
 		colName = label
 		// Check if colName exists in data keys?
 		// Actually, let's stick to strict mapping first.
-		return nil, fmt.Errorf("tag '%s' not found in view '%s'", label, v.Config.Name)
+		return nil, fmt.Errorf("label '%s' not found in view '%s'", label, v.Config.Name)
 	}
 
 	seen := make(map[string]struct{})
@@ -72,10 +72,10 @@ func (v *DataView) Filter(params map[string]string) {
 	for _, row := range v.Data {
 		match := true
 		for paramKey, paramVal := range params {
-			// Find column for this paramKey (which acts as a tag)
-			colName, ok := v.TagMapping[paramKey]
+			// Find column for this paramKey (which acts as a label)
+			colName, ok := v.LabelMapping[paramKey]
 			if !ok {
-				continue // Parameter not mapped to a tag in this view, ignore
+				continue // Parameter not mapped to a label in this view, ignore
 			}
 
 			if rowVal, hasCol := row[colName]; hasCol {
@@ -100,7 +100,7 @@ func (v *DataView) GetRowCount() int {
 
 // Copy creates a deep copy of the DataView.
 // The Data slice is duplicated so that modifications (like Filter) on the copy
-// do not affect the original. Config and TagMapping are shared as they are read-only.
+// do not affect the original. Config and LabelMapping are shared as they are read-only.
 func (v *DataView) Copy() *DataView {
 	// Deep copy data
 	newData := make([]map[string]interface{}, len(v.Data))
@@ -116,8 +116,8 @@ func (v *DataView) Copy() *DataView {
 	}
 
 	return &DataView{
-		Config:     v.Config,
-		Data:       newData,
-		TagMapping: v.TagMapping, // Shared reference is fine for read-only map
+		Config:       v.Config,
+		Data:         newData,
+		LabelMapping: v.LabelMapping, // Shared reference is fine for read-only map
 	}
 }

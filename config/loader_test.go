@@ -17,7 +17,7 @@ func TestLoadConfigBundle(t *testing.T) {
   outputDir: "out"
 dataViews:
   - name: "view1"
-    tags:
+    labels:
       - name: "id"
         column: "ID"
 dataSources:
@@ -29,7 +29,7 @@ dataSources:
 		t.Fatalf("write bundle: %v", err)
 	}
 
-	wb, vviews, dataSources, err := LoadConfigBundle(path)
+	wb, views, dataSources, err := LoadConfigBundle(path)
 	if err != nil {
 		t.Fatalf("LoadConfigBundle error: %v", err)
 	}
@@ -37,7 +37,7 @@ dataSources:
 	if wb.Id != "wb1" {
 		t.Fatalf("workbook id = %s, want wb1", wb.Id)
 	}
-	if _, ok := vviews["view1"]; !ok {
+	if _, ok := views["view1"]; !ok {
 		t.Fatalf("expected virtual view view1 to be loaded")
 	}
 	if _, ok := dataSources["source1"]; !ok {
@@ -49,9 +49,9 @@ func TestLoadAllConfigs(t *testing.T) {
 	dir := t.TempDir()
 
 	workbookDir := filepath.Join(dir, "workbooks")
-	vviewDir := filepath.Join(dir, "dataViews")
+	dataViewDir := filepath.Join(dir, "dataViews")
 	dataSourceDir := filepath.Join(dir, "datasources")
-	for _, d := range []string{workbookDir, vviewDir, dataSourceDir} {
+	for _, d := range []string{workbookDir, dataViewDir, dataSourceDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			t.Fatalf("mkdir %s: %v", d, err)
 		}
@@ -66,13 +66,13 @@ outputDir: "out"
 		t.Fatalf("write workbook: %v", err)
 	}
 
-	vview := `name: "view1"
-tags:
+	view := `name: "view1"
+labels:
   - name: "id"
     column: "ID"
 `
-	if err := os.WriteFile(filepath.Join(vviewDir, "view1.yaml"), []byte(vview), 0644); err != nil {
-		t.Fatalf("write vview: %v", err)
+	if err := os.WriteFile(filepath.Join(dataViewDir, "view1.yaml"), []byte(view), 0644); err != nil {
+		t.Fatalf("write data view: %v", err)
 	}
 
 	ds := `name: "source1"
@@ -83,14 +83,14 @@ dsn: "root:pass@tcp(localhost:3306)/db"
 		t.Fatalf("write data source: %v", err)
 	}
 
-	wbs, vviews, dataSources, err := LoadAllConfigs(dir)
+	wbs, views, dataSources, err := LoadAllConfigs(dir)
 	if err != nil {
 		t.Fatalf("LoadAllConfigs error: %v", err)
 	}
 	if _, ok := wbs["wb1"]; !ok {
 		t.Fatalf("expected workbook wb1 to be loaded")
 	}
-	if _, ok := vviews["view1"]; !ok {
+	if _, ok := views["view1"]; !ok {
 		t.Fatalf("expected virtual view view1 to be loaded")
 	}
 	if _, ok := dataSources["source1"]; !ok {

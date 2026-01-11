@@ -64,7 +64,7 @@ type DataSourcesBundle struct {
 }
 
 // LoadConfigBundle loads a single configuration bundle from a YAML file.
-// It includes one workbook, and optional virtual views and data sources.
+// It includes one workbook, and optional data views and data sources.
 func LoadConfigBundle(path string) (*WorkbookConfig, map[string]*DataViewConfig, map[string]*DataSourceConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

@@ -26,7 +26,7 @@ type DataSourceConfig struct {
 }
 
 type LabelConfig struct {
-	Name   string `json:"name"   yaml:"name"`   // tag name
+	Name   string `json:"name"   yaml:"name"`   // label name
 	Column string `json:"column" yaml:"column"` // actual column name in db
 	Type   string `json:"type,omitempty" yaml:"type,omitempty"`
 }

@@ -43,8 +43,8 @@ func TestDataView_GetDistinctLabelValues(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "Unknown Tag",
-			label:   "unknown_tag",
+			name:    "Unknown Label",
+			label:   "unknown_label",
 			want:    nil,
 			wantErr: true,
 		},

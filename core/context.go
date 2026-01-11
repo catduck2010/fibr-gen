@@ -158,20 +158,20 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 	return finalData, nil
 }
 
-// distinctData filters the data to unique values based on the block's tag configuration.
-func (ctx *GenerationContext) distinctData(data []map[string]interface{}, block *config.BlockConfig, vv *DataView) ([]map[string]interface{}, error) {
-	// Identify the key tag for this axis.
-	keyTag := block.LabelVariable
-	if keyTag == "" {
-		if len(vv.Config.Labels) > 0 {
-			keyTag = vv.Config.Labels[0].Name
+// distinctData filters the data to unique values based on the block's label configuration.
+func (ctx *GenerationContext) distinctData(data []map[string]interface{}, block *config.BlockConfig, v *DataView) ([]map[string]interface{}, error) {
+	// Identify the key label for this axis.
+	keyLabel := block.LabelVariable
+	if keyLabel == "" {
+		if len(v.Config.Labels) > 0 {
+			keyLabel = v.Config.Labels[0].Name
 		} else {
-			return data, nil // No tags to distinct by
+			return data, nil // No labels to distinct by
 		}
 	}
 
 	// Use DataView's mapping
-	colName, ok := vv.TagMapping[keyTag]
+	colName, ok := v.LabelMapping[keyLabel]
 	if !ok {
 		return data, nil
 	}
