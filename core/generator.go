@@ -179,7 +179,7 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 		// Process each block in the NEW sheet
 		for _, block := range sheetConf.Blocks {
 			// We need to pass the sheetParams down.
-			// But processBlock calls processTagBlock which uses g.Context.Parameters.
+			// But processBlock calls processValueBlock which uses g.Context.Parameters.
 			// We should refactor processBlock to accept params too, or temporarily modify context?
 			// Modifying context is not thread-safe if we parallelize.
 			// Passing params is better.
@@ -201,34 +201,34 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 
 func (g *Generator) processBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
 	switch block.Type {
-	case config.BlockTypeTag:
-		return g.processTagBlockWithParams(f, sheetName, block, params)
-	case config.BlockTypeExpand:
-		// ExpandableBlock also needs to accept params!
-		// But processExpandableBlock signature is fixed currently.
+	case config.BlockTypeValue:
+		return g.processValueBlockWithParams(f, sheetName, block, params)
+	case config.BlockTypeMatrix:
+		// MatrixBlock also needs to accept params!
+		// But processMatrixBlock signature is fixed currently.
 		// Let's assume we can change it or Context has the params?
 		// Ideally we update Context for this operation?
-		// Or refactor processExpandableBlock to take params.
+		// Or refactor processMatrixBlock to take params.
 		// For now, let's update Context (since Generator is per-request, single threaded usually)
 		// But wait, we are inside a loop.
 
-		// Refactoring processExpandableBlock to accept params is the right way.
-		return g.processExpandableBlockWithParams(f, sheetName, block, params)
+		// Refactoring processMatrixBlock to accept params is the right way.
+		return g.processMatrixBlockWithParams(f, sheetName, block, params)
 	default:
 		return fmt.Errorf("unsupported block type: %s", block.Type)
 	}
 }
 
-// Rename processExpandableBlock to processExpandableBlockWithParams and update usage
-func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
-	// ... (content of processExpandableBlock but using params instead of g.Context.Parameters)
+// Rename processMatrixBlock to processMatrixBlockWithParams and update usage
+func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
+	// ... (content of processMatrixBlock but using params instead of g.Context.Parameters)
 	// We need to change g.Context.GetBlockData(vAxis) to GetBlockDataWithParams(vAxis, params)
 
 	// 1. Identify Axes
 	var vAxis, hAxis *config.BlockConfig
 	for i := range block.SubBlocks {
 		sb := &block.SubBlocks[i]
-		if sb.Type == config.BlockTypeAxis {
+		if sb.Type == config.BlockTypeHeader {
 			switch sb.Direction {
 			case config.DirectionVertical, "":
 				vAxis = sb
@@ -239,7 +239,7 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 	}
 
 	if vAxis == nil || hAxis == nil {
-		return fmt.Errorf("ExpandableBlock %s must have both vertical and horizontal axes", block.Name)
+		return fmt.Errorf("MatrixBlock %s must have both vertical and horizontal axes", block.Name)
 	}
 
 	// 2. Determine Expansion Mode
@@ -377,7 +377,7 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 	for i := range block.SubBlocks {
 		sb := &block.SubBlocks[i]
 		// Use Template flag if available, otherwise fallback to Type != Axis
-		if sb.Template || sb.Type != config.BlockTypeAxis {
+		if sb.Template || sb.Type != config.BlockTypeHeader {
 			templateBlocks = append(templateBlocks, sb)
 		}
 	}
@@ -607,11 +607,11 @@ func (g *Generator) copyCols(f ExcelFile, sheet string, srcStartCol, srcEndCol, 
 	return g.copySlice(f, sheet, false, srcStartCol, srcEndCol, destStartCol, insertWidth)
 }
 
-func (g *Generator) processTagBlock(f ExcelFile, sheetName string, block *config.BlockConfig) error {
-	return g.processTagBlockWithParams(f, sheetName, block, g.Context.Parameters)
+func (g *Generator) processValueBlock(f ExcelFile, sheetName string, block *config.BlockConfig) error {
+	return g.processValueBlockWithParams(f, sheetName, block, g.Context.Parameters)
 }
 
-func (g *Generator) processTagBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
+func (g *Generator) processValueBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
 	data, err := g.Context.GetBlockDataWithParams(block, params)
 	if err != nil {
 		return err
@@ -636,7 +636,7 @@ func (g *Generator) processTagBlockWithParams(f ExcelFile, sheetName string, blo
 
 	// 1. Expand (Insert Rows/Columns) if needed
 	// Note: In C#, expansion happens only if block.Expand is true (which maps to InsertAfter here probably, or explicit Expand flag)
-	// But TagBlock in C# also has an implicit loop if multiple rows are returned.
+	// But ValueBlock in C# also has an implicit loop if multiple rows are returned.
 	// Let's assume we always expand if row count > 1, similar to C# logic.
 	dataCount := len(data)
 	if dataCount > 1 {

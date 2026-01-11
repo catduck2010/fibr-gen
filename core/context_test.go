@@ -46,8 +46,8 @@ func TestNewGenerationContext_ArchiveRule(t *testing.T) {
 	}
 	ctx := NewGenerationContext(wb, nil, nil, nil)
 	today := time.Now().Format("2006-01-02")
-	if ctx.Parameters["archivedate"] != today {
-		t.Fatalf("archivedate = %s, want %s", ctx.Parameters["archivedate"], today)
+	if ctx.Parameters["archive_date"] != today {
+		t.Fatalf("archive_date = %s, want %s", ctx.Parameters["archive_date"], today)
 	}
 }
 
