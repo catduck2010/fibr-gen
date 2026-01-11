@@ -18,30 +18,39 @@ func NewGenerator(ctx *GenerationContext) *Generator {
 	return &Generator{Context: ctx}
 }
 
+func replacePlaceholders(input string, params map[string]string) string {
+	output := input
+	for k, v := range params {
+		placeholder := fmt.Sprintf("${%s}", k)
+		output = strings.ReplaceAll(output, placeholder, v)
+	}
+	return output
+}
+
+func cloneParams(params map[string]string) map[string]string {
+	copied := make(map[string]string, len(params))
+	for k, v := range params {
+		copied[k] = v
+	}
+	return copied
+}
+
 // Generate executes the workbook generation process.
 func (g *Generator) Generate(templateRoot, outputRoot string) error {
 	wbConf := g.Context.WorkbookConfig
 	templatePath := filepath.Join(templateRoot, wbConf.Template)
 
 	// Replace parameters in output path (e.g. ${archivedate})
-	outputPathStr := wbConf.OutputDir
-	for k, v := range g.Context.Parameters {
-		placeholder := fmt.Sprintf("${%s}", k)
-		outputPathStr = strings.ReplaceAll(outputPathStr, placeholder, v)
-	}
+	outputPathStr := replacePlaceholders(wbConf.OutputDir, g.Context.Parameters)
 
 	outputPath := filepath.Join(outputRoot, outputPathStr)
 	if filepath.Ext(outputPath) == "" {
 		// Replace parameters in workbook name
-		name := wbConf.Name
-		for k, v := range g.Context.Parameters {
-			placeholder := fmt.Sprintf("${%s}", k)
-			name = strings.ReplaceAll(name, placeholder, v)
-		}
+		name := replacePlaceholders(wbConf.Name, g.Context.Parameters)
 		outputPath = filepath.Join(outputPath, name+".xlsx")
 	}
 
-	f, err := excelize.OpenFile(templatePath)
+	f, err := openExcelFile(templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to open template: %w", err)
 	}
@@ -63,7 +72,7 @@ func (g *Generator) Generate(templateRoot, outputRoot string) error {
 	return nil
 }
 
-func (g *Generator) processSheet(f *excelize.File, sheetConf *config.SheetConfig) error {
+func (g *Generator) processSheet(f ExcelFile, sheetConf *config.SheetConfig) error {
 	if sheetConf.Dynamic {
 		return g.processDynamicSheet(f, sheetConf)
 	}
@@ -76,11 +85,11 @@ func (g *Generator) processSheet(f *excelize.File, sheetConf *config.SheetConfig
 	return nil
 }
 
-func (g *Generator) processBlock(f *excelize.File, sheetName string, block *config.BlockConfig) error {
+func (g *Generator) processBlock(f ExcelFile, sheetName string, block *config.BlockConfig) error {
 	return g.processBlockWithParams(f, sheetName, block, g.Context.Parameters)
 }
 
-func (g *Generator) processDynamicSheet(f *excelize.File, sheetConf *config.SheetConfig) error {
+func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConfig) error {
 	// 1. Get Distinct Tag Values (e.g. Month Names)
 	// Need to find VView Config
 	vViewConf, err := g.Context.ConfigProvider.GetVirtualViewConfig(sheetConf.VViewName)
@@ -146,10 +155,7 @@ func (g *Generator) processDynamicSheet(f *excelize.File, sheetConf *config.Shee
 
 		// 3. Process Blocks for this new sheet
 		// We need to inject the parameter for this sheet (e.g. month=January)
-		sheetParams := make(map[string]string)
-		for k, v := range g.Context.Parameters {
-			sheetParams[k] = v
-		}
+		sheetParams := cloneParams(g.Context.Parameters)
 		sheetParams[sheetConf.ParamTag] = val
 
 		// Process each block in the NEW sheet
@@ -175,7 +181,7 @@ func (g *Generator) processDynamicSheet(f *excelize.File, sheetConf *config.Shee
 	return nil
 }
 
-func (g *Generator) processBlockWithParams(f *excelize.File, sheetName string, block *config.BlockConfig, params map[string]string) error {
+func (g *Generator) processBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
 	switch block.Type {
 	case config.BlockTypeTag:
 		return g.processTagBlockWithParams(f, sheetName, block, params)
@@ -196,7 +202,7 @@ func (g *Generator) processBlockWithParams(f *excelize.File, sheetName string, b
 }
 
 // Rename processExpandableBlock to processExpandableBlockWithParams and update usage
-func (g *Generator) processExpandableBlockWithParams(f *excelize.File, sheetName string, block *config.BlockConfig, params map[string]string) error {
+func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
 	// ... (content of processExpandableBlock but using params instead of g.Context.Parameters)
 	// We need to change g.Context.GetBlockData(vAxis) to GetBlockDataWithParams(vAxis, params)
 
@@ -463,8 +469,8 @@ func (g *Generator) processExpandableBlockWithParams(f *excelize.File, sheetName
 						}
 					}
 
-					f.SetCellValue(sheetName, tcn, val)
-					f.SetCellStyle(sheetName, tcn, tcn, sty)
+					_ = f.SetCellValue(sheetName, tcn, val)
+					_ = f.SetCellStyle(sheetName, tcn, tcn, sty)
 				}
 			}
 		}
@@ -582,10 +588,7 @@ func (g *Generator) processExpandableBlockWithParams(f *excelize.File, sheetName
 	for r, rowItem := range rows {
 		for c, colItem := range cols {
 			// Construct parameters for this cell
-			cellParams := make(map[string]string)
-			for k, v := range g.Context.Parameters {
-				cellParams[k] = v
-			}
+			cellParams := cloneParams(g.Context.Parameters)
 
 			// Resolve Tag Name -> Column Name first!
 			getColName := func(vViewName, tagName string) string {
@@ -661,9 +664,9 @@ func (g *Generator) processExpandableBlockWithParams(f *excelize.File, sheetName
 						targetR := cache.StartRow + rowOffset + tr
 
 						cn, _ := excelize.CoordinatesToCellName(targetC, targetR)
-						f.SetCellValue(sheetName, cn, val)
+						_ = f.SetCellValue(sheetName, cn, val)
 						if style != 0 {
-							f.SetCellStyle(sheetName, cn, cn, style)
+							_ = f.SetCellStyle(sheetName, cn, cn, style)
 						}
 					}
 				}
@@ -675,7 +678,7 @@ func (g *Generator) processExpandableBlockWithParams(f *excelize.File, sheetName
 }
 
 // copyRows copies a range of rows to a new location, replicating them count times.
-func (g *Generator) copyRows(f *excelize.File, sheet string, srcStartRow, srcEndRow, destStartRow, insertHeight int) error {
+func (g *Generator) copyRows(f ExcelFile, sheet string, srcStartRow, srcEndRow, destStartRow, insertHeight int) error {
 	// 1. Read Source Data
 	srcHeight := srcEndRow - srcStartRow + 1
 	type cellData struct {
@@ -713,9 +716,9 @@ func (g *Generator) copyRows(f *excelize.File, sheet string, srcStartRow, srcEnd
 			key := srcOffset*10000 + c
 			if data, ok := srcMap[key]; ok {
 				cn, _ := excelize.CoordinatesToCellName(c, destRow)
-				f.SetCellValue(sheet, cn, data.val)
+				_ = f.SetCellValue(sheet, cn, data.val)
 				if data.style != 0 {
-					f.SetCellStyle(sheet, cn, cn, data.style)
+					_ = f.SetCellStyle(sheet, cn, cn, data.style)
 				}
 			}
 		}
@@ -724,7 +727,7 @@ func (g *Generator) copyRows(f *excelize.File, sheet string, srcStartRow, srcEnd
 }
 
 // copyCols copies a range of columns to a new location.
-func (g *Generator) copyCols(f *excelize.File, sheet string, srcStartCol, srcEndCol, destStartCol, insertWidth int) error {
+func (g *Generator) copyCols(f ExcelFile, sheet string, srcStartCol, srcEndCol, destStartCol, insertWidth int) error {
 	srcWidth := srcEndCol - srcStartCol + 1
 
 	type cellData struct {
@@ -759,9 +762,9 @@ func (g *Generator) copyCols(f *excelize.File, sheet string, srcStartCol, srcEnd
 			key := srcOffset*10000 + r
 			if data, ok := srcMap[key]; ok {
 				cn, _ := excelize.CoordinatesToCellName(destCol, r)
-				f.SetCellValue(sheet, cn, data.val)
+				_ = f.SetCellValue(sheet, cn, data.val)
 				if data.style != 0 {
-					f.SetCellStyle(sheet, cn, cn, data.style)
+					_ = f.SetCellStyle(sheet, cn, cn, data.style)
 				}
 			}
 		}
@@ -786,11 +789,11 @@ func (g *Generator) copyCols(f *excelize.File, sheet string, srcStartCol, srcEnd
 // 	return n1 + ":" + n2, nil
 // }
 
-func (g *Generator) processTagBlock(f *excelize.File, sheetName string, block *config.BlockConfig) error {
+func (g *Generator) processTagBlock(f ExcelFile, sheetName string, block *config.BlockConfig) error {
 	return g.processTagBlockWithParams(f, sheetName, block, g.Context.Parameters)
 }
 
-func (g *Generator) processTagBlockWithParams(f *excelize.File, sheetName string, block *config.BlockConfig, params map[string]string) error {
+func (g *Generator) processTagBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
 	data, err := g.Context.GetBlockDataWithParams(block, params)
 	if err != nil {
 		return err
@@ -912,8 +915,8 @@ func (g *Generator) processTagBlockWithParams(f *excelize.File, sheetName string
 					}
 				}
 
-				f.SetCellValue(sheetName, targetCellName, currentVal)
-				f.SetCellStyle(sheetName, targetCellName, targetCellName, styleID)
+				_ = f.SetCellValue(sheetName, targetCellName, currentVal)
+				_ = f.SetCellStyle(sheetName, targetCellName, targetCellName, styleID)
 			}
 		}
 	}
