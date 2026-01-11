@@ -19,6 +19,9 @@ type ExcelFile interface {
 	SaveAs(name string) error
 	SetCellStyle(sheet, hcell, vcell string, styleID int) error
 	SetCellValue(sheet, cell string, value interface{}) error
+	GetSheetList() []string
+	SetActiveSheet(index int)
+	SetSelection(sheetName, cell string) error
 }
 
 type ExcelizeFile struct {
@@ -91,4 +94,45 @@ func (e *ExcelizeFile) SetCellStyle(sheet, hcell, vcell string, styleID int) err
 
 func (e *ExcelizeFile) SetCellValue(sheet, cell string, value interface{}) error {
 	return e.file.SetCellValue(sheet, cell, value)
+}
+
+func (e *ExcelizeFile) GetSheetList() []string {
+	return e.file.GetSheetList()
+}
+
+func (e *ExcelizeFile) SetActiveSheet(index int) {
+	e.file.SetActiveSheet(index)
+}
+
+func (e *ExcelizeFile) SetSelection(sheetName, cell string) error {
+	// Set active cell and selection to the specified cell (e.g., "A1") using SetPanes
+	// We try to preserve existing panes if possible
+	panes, err := e.file.GetPanes(sheetName)
+	if err == nil {
+		// Update selection in existing panes
+		panes.Selection = []excelize.Selection{
+			{
+				ActiveCell: cell,
+				SQRef:      cell,
+			},
+		}
+		// If panes are frozen/split, we need to ensure ActivePane is set correctly if needed,
+		// but simply updating Selection list should be enough for basic cases.
+		// However, SetPanes expects all fields. GetPanes returns them.
+		return e.file.SetPanes(sheetName, &panes)
+	}
+
+	// Fallback if GetPanes fails (e.g. no panes set yet? or error)
+	// If GetPanes returns error, it might mean no panes are set, or sheet doesn't exist.
+	// We assume no panes.
+	return e.file.SetPanes(sheetName, &excelize.Panes{
+		Freeze: false,
+		Split:  false,
+		Selection: []excelize.Selection{
+			{
+				ActiveCell: cell,
+				SQRef:      cell,
+			},
+		},
+	})
 }

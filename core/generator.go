@@ -71,6 +71,15 @@ func (g *Generator) Generate(templateRoot, outputRoot string) (err error) {
 		}
 	}
 
+	// UX: Reset view to A1 for all sheets and set first sheet active
+	if sheets := f.GetSheetList(); len(sheets) > 0 {
+		for _, sheet := range sheets {
+			// Ignore error for SetSelection as it's UX improvement
+			_ = f.SetSelection(sheet, "A1")
+		}
+		f.SetActiveSheet(0)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
