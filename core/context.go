@@ -37,10 +37,10 @@ func NewGenerationContext(wb *config.WorkbookConfig, provider config.ConfigProvi
 		mergedParams[k] = v
 	}
 
-	// Handle archivedate special rule
+	// Handle archive_date special rule
 	if wb.ArchiveRule != "" {
 		if val, err := ParseDynamicDate(wb.ArchiveRule, time.Now()); err == nil {
-			mergedParams["archivedate"] = val
+			mergedParams["archive_date"] = val
 		}
 	}
 
@@ -106,7 +106,7 @@ func (ctx *GenerationContext) GetBlockData(block *config.BlockConfig) ([]map[str
 	return ctx.GetBlockDataWithParams(block, ctx.Parameters)
 }
 
-// GetBlockDataWithParams fetches data with custom parameters (for ExpandableBlock iteration).
+// GetBlockDataWithParams fetches data with custom parameters (for MatrixBlock iteration).
 func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, params map[string]string) ([]map[string]interface{}, error) {
 	if block.VViewName == "" {
 		return nil, nil // No data source
@@ -126,7 +126,7 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 
 	// Apply Distinct logic if it's an Axis Block
 	var finalData []map[string]interface{}
-	if block.Type == config.BlockTypeAxis {
+	if block.Type == config.BlockTypeHeader {
 		result, err := ctx.distinctData(vv.Data, block, vv)
 		if err != nil {
 			return nil, err
@@ -143,7 +143,7 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 
 	// Debug Log
 	blockTypeStr := ""
-	if block.Type == config.BlockTypeAxis {
+	if block.Type == config.BlockTypeHeader {
 		blockTypeStr = " (Axis)"
 	}
 

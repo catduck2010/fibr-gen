@@ -3,9 +3,9 @@ package config
 type BlockType string
 
 const (
-	BlockTypeTag    BlockType = "T" // TagBlock
-	BlockTypeAxis   BlockType = "A" // AxisBlock
-	BlockTypeExpand BlockType = "E" // ExpandableBlock
+	BlockTypeValue  BlockType = "value"  // ValueBlock
+	BlockTypeHeader BlockType = "header" // HeaderBlock
+	BlockTypeMatrix BlockType = "matrix" // MatrixBlock
 )
 
 type Direction string
@@ -47,7 +47,7 @@ type VirtualViewConfig struct {
 // BlockConfig：config for a block
 type BlockConfig struct {
 	Name      string     `json:"name"          yaml:"name"`
-	Type      BlockType  `json:"type"          yaml:"type"`  // T / A / E
+	Type      BlockType  `json:"type"          yaml:"type"`  // value / header / matrix
 	Range     CellRange  `json:"range"         yaml:"range"` // 块整体范围
 	TagRange  *CellRange `json:"tagRange,omitempty" yaml:"tagRange,omitempty"`
 	VViewName string     `json:"vview,omitempty" yaml:"vview,omitempty"` // 绑定的数据源视图名
@@ -58,7 +58,7 @@ type BlockConfig struct {
 	InsertAfter bool      `json:"insertAfter,omitempty" yaml:"insertAfter,omitempty"`
 	TagVariable string    `json:"tagVariable,omitempty" yaml:"tagVariable,omitempty"`
 
-	// Template TagBlock of ExpandableBlock
+	// Template ValueBlock of MatrixBlock
 	Template bool `json:"template,omitempty" yaml:"template,omitempty"`
 
 	// Nested

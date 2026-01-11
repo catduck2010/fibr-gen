@@ -67,7 +67,7 @@ func (m *MockFetcher) Fetch(viewName string, params map[string]string) ([]map[st
 
 // Tests for Excel Operations and Block Processing
 
-func TestExpandableBlock_MergedAxis(t *testing.T) {
+func TestMatrixBlock_MergedHeader(t *testing.T) {
 	// 1. Setup Excel Template
 	f := excelize.NewFile()
 	sheet := "Sheet1"
@@ -93,7 +93,7 @@ func TestExpandableBlock_MergedAxis(t *testing.T) {
 	// 2. Setup Config
 	vAxisConf := config.BlockConfig{
 		Name:        "VAxis",
-		Type:        config.BlockTypeAxis,
+		Type:        config.BlockTypeHeader,
 		Direction:   config.DirectionVertical,
 		Range:       config.CellRange{Ref: "A2:B2"}, // Merged Range
 		VViewName:   "v_items",
@@ -103,7 +103,7 @@ func TestExpandableBlock_MergedAxis(t *testing.T) {
 
 	hAxisConf := config.BlockConfig{
 		Name:        "HAxis",
-		Type:        config.BlockTypeAxis,
+		Type:        config.BlockTypeHeader,
 		Direction:   config.DirectionHorizontal,
 		Range:       config.CellRange{Ref: "C1:C1"},
 		VViewName:   "v_headers",
@@ -112,14 +112,14 @@ func TestExpandableBlock_MergedAxis(t *testing.T) {
 
 	templateBlock := config.BlockConfig{
 		Name:  "Template1",
-		Type:  config.BlockTypeTag,
+		Type:  config.BlockTypeValue,
 		Range: config.CellRange{Ref: "C2:C2"},
 	}
 
 	// SubBlocks
-	expandBlock := &config.BlockConfig{
-		Name:      "ExpandBlock",
-		Type:      config.BlockTypeExpand,
+	matrixBlock := &config.BlockConfig{
+		Name:      "MatrixBlock",
+		Type:      config.BlockTypeMatrix,
 		Direction: config.DirectionVertical,
 		Range:     config.CellRange{Ref: "A1:C2"}, // Bounding Box
 		SubBlocks: []config.BlockConfig{vAxisConf, hAxisConf, templateBlock},
@@ -127,7 +127,7 @@ func TestExpandableBlock_MergedAxis(t *testing.T) {
 
 	wbConfig := &config.WorkbookConfig{
 		Sheets: []config.SheetConfig{
-			{Name: "Sheet1", Blocks: []config.BlockConfig{*expandBlock}},
+			{Name: "Sheet1", Blocks: []config.BlockConfig{*matrixBlock}},
 		},
 	}
 
@@ -233,7 +233,7 @@ func setupTemplate_Demo(t *testing.T) *excelize.File {
 
 func TestEndToEnd_DemoReport(t *testing.T) {
 	// Config: test/workbooks/demo_report.yaml
-	// This is a simple TagBlock test (TitleBlock)
+	// This is a simple ValueBlock test (TitleBlock)
 
 	wbConfig := &config.WorkbookConfig{
 		Id:        "wb_demo",
@@ -247,7 +247,7 @@ func TestEndToEnd_DemoReport(t *testing.T) {
 				Blocks: []config.BlockConfig{
 					{
 						Name:      "TitleBlock",
-						Type:      config.BlockTypeTag,
+						Type:      config.BlockTypeValue,
 						Range:     config.CellRange{Ref: "A1:B1"},
 						VViewName: "v_title",
 					},
@@ -296,8 +296,8 @@ func TestEndToEnd_DemoReport(t *testing.T) {
 	}
 }
 
-// Helper to create TagBlock Template
-func setupTemplate_TagBlock(t testing.TB) *excelize.File {
+// Helper to create ValueBlock Template
+func setupTemplate_ValueBlock(t testing.TB) *excelize.File {
 	f := excelize.NewFile()
 	sheet := "Sheet1"
 	idx, _ := f.GetSheetIndex("Sheet1")
@@ -311,13 +311,13 @@ func setupTemplate_TagBlock(t testing.TB) *excelize.File {
 	return f
 }
 
-func TestEndToEnd_TagBlock(t *testing.T) {
-	// Config: test/workbooks/tagblock_test.yaml
+func TestEndToEnd_ValueBlock(t *testing.T) {
+	// Config: test/workbooks/valueblock_test.yaml
 
 	wbConfig := &config.WorkbookConfig{
-		Id:        "wb_tagblock_test",
-		Name:      "TagBlockTest",
-		Template:  "tagblock_template.xlsx",
+		Id:        "wb_valueblock_test",
+		Name:      "ValueBlockTest",
+		Template:  "valueblock_template.xlsx",
 		OutputDir: "tests",
 		Sheets: []config.SheetConfig{
 			{
@@ -326,7 +326,7 @@ func TestEndToEnd_TagBlock(t *testing.T) {
 				Blocks: []config.BlockConfig{
 					{
 						Name:      "EmployeeList",
-						Type:      config.BlockTypeTag,
+						Type:      config.BlockTypeValue,
 						Range:     config.CellRange{Ref: "A2:C2"},
 						VViewName: "employee_view",
 						Direction: config.DirectionVertical,
@@ -360,7 +360,7 @@ func TestEndToEnd_TagBlock(t *testing.T) {
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
-	f := setupTemplate_TagBlock(t)
+	f := setupTemplate_ValueBlock(t)
 	adapter := &ExcelizeFile{file: f}
 
 	block := &wbConfig.Sheets[0].Blocks[0]
@@ -368,7 +368,7 @@ func TestEndToEnd_TagBlock(t *testing.T) {
 		t.Fatalf("processBlock failed: %v", err)
 	}
 
-	saveTestFile(t, f, "tag_block.xlsx")
+	saveTestFile(t, f, "value_block.xlsx")
 
 	// Verify Expansion
 	// Row 2: Alice
@@ -397,7 +397,7 @@ func setupTemplate_Cross(t *testing.T) *excelize.File {
 	if idx == -1 {
 		f.NewSheet(sheet)
 	}
-	// ExpandBlock A2:B3
+	// MatrixBlock A2:B3
 	// MonthAxis B2 (Horizontal)
 	f.SetCellValue(sheet, "B2", "{month_label}")
 
@@ -416,7 +416,7 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 	// SubBlocks
 	vAxisConf := config.BlockConfig{
 		Name:        "EmpAxis",
-		Type:        config.BlockTypeAxis,
+		Type:        config.BlockTypeHeader,
 		Direction:   config.DirectionVertical,
 		Range:       config.CellRange{Ref: "A3:A3"},
 		VViewName:   "v_emp",
@@ -425,7 +425,7 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 
 	hAxisConf := config.BlockConfig{
 		Name:      "MonthAxis",
-		Type:      config.BlockTypeAxis,
+		Type:      config.BlockTypeHeader,
 		Direction: config.DirectionHorizontal,
 		Range:     config.CellRange{Ref: "B2:B2"},
 		VViewName: "v_month",
@@ -433,14 +433,14 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 
 	dataBlock := config.BlockConfig{
 		Name:      "ScoreData",
-		Type:      config.BlockTypeTag,
+		Type:      config.BlockTypeValue,
 		Range:     config.CellRange{Ref: "B3:B3"},
 		VViewName: "v_full_perf",
 	}
 
-	expandBlock := config.BlockConfig{
+	matrixBlock := config.BlockConfig{
 		Name:      "PerformanceMatrix",
-		Type:      config.BlockTypeExpand,
+		Type:      config.BlockTypeMatrix,
 		Range:     config.CellRange{Ref: "A2:B3"}, // Covers headers and data
 		SubBlocks: []config.BlockConfig{vAxisConf, hAxisConf, dataBlock},
 	}
@@ -454,7 +454,7 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 			{
 				Name:    "Sheet1",
 				Dynamic: false,
-				Blocks:  []config.BlockConfig{expandBlock},
+				Blocks:  []config.BlockConfig{matrixBlock},
 			},
 		},
 	}
@@ -505,7 +505,7 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 	f := setupTemplate_Cross(t)
 	adapter := &ExcelizeFile{file: f}
 
-	if err := gen.processBlock(adapter, "Sheet1", &expandBlock); err != nil {
+	if err := gen.processBlock(adapter, "Sheet1", &matrixBlock); err != nil {
 		t.Fatalf("processBlock failed: %v", err)
 	}
 
@@ -579,7 +579,7 @@ func TestEndToEnd_ArchiveDate(t *testing.T) {
 				Blocks: []config.BlockConfig{
 					{
 						Name:      "Data",
-						Type:      config.BlockTypeTag,
+						Type:      config.BlockTypeValue,
 						Range:     config.CellRange{Ref: "A2:B2"},
 						VViewName: "v_data",
 					},
@@ -640,11 +640,11 @@ func TestEndToEnd_ArchiveDate(t *testing.T) {
 	}
 }
 
-func TestDynamicSheet_ExpandableBlock_ParamInheritance(t *testing.T) {
+func TestDynamicSheet_MatrixBlock_ParamInheritance(t *testing.T) {
 	// Scenario:
 	// Dynamic Sheet iterates over "months" (M1, M2).
-	// Expandable Block (Cross Table) inside needs to filter "sales" by "month_id".
-	// If bug exists, the expandable block will miss "month_id" and might show wrong data.
+	// Matrix Block (Cross Table) inside needs to filter "sales" by "month_id".
+	// If bug exists, the matrix block will miss "month_id" and might show wrong data.
 
 	wbConfig := &config.WorkbookConfig{
 		Id:       "wb_dyn_param",
@@ -659,12 +659,12 @@ func TestDynamicSheet_ExpandableBlock_ParamInheritance(t *testing.T) {
 				Blocks: []config.BlockConfig{
 					{
 						Name:  "SalesMatrix",
-						Type:  config.BlockTypeExpand,
+						Type:  config.BlockTypeMatrix,
 						Range: config.CellRange{Ref: "A1:B2"},
 						SubBlocks: []config.BlockConfig{
 							{
 								Name:        "ItemAxis",
-								Type:        config.BlockTypeAxis,
+								Type:        config.BlockTypeHeader,
 								Direction:   config.DirectionVertical,
 								InsertAfter: true,
 								Range:       config.CellRange{Ref: "A2:A2"},
@@ -673,14 +673,14 @@ func TestDynamicSheet_ExpandableBlock_ParamInheritance(t *testing.T) {
 							},
 							{
 								Name:      "MetricAxis",
-								Type:      config.BlockTypeAxis,
+								Type:      config.BlockTypeHeader,
 								Direction: config.DirectionHorizontal,
 								Range:     config.CellRange{Ref: "B1:B1"},
 								VViewName: "v_metrics", // Static "Revenue"
 							},
 							{
 								Name:      "Data",
-								Type:      config.BlockTypeTag,
+								Type:      config.BlockTypeValue,
 								Range:     config.CellRange{Ref: "B2:B2"},
 								VViewName: "v_sales",
 								RowLimit:  1,
@@ -772,7 +772,7 @@ func TestDynamicSheet_ExpandableBlock_ParamInheritance(t *testing.T) {
 	}
 }
 
-func BenchmarkTagBlock_Insert50k(b *testing.B) {
+func BenchmarkValueBlock_Insert50k(b *testing.B) {
 	// 1. Generate 50k rows
 	count := 50000
 	rows := make([]map[string]interface{}, count)
@@ -793,7 +793,7 @@ func BenchmarkTagBlock_Insert50k(b *testing.B) {
 				Blocks: []config.BlockConfig{
 					{
 						Name:      "EmployeeList",
-						Type:      config.BlockTypeTag,
+						Type:      config.BlockTypeValue,
 						Range:     config.CellRange{Ref: "A2:C2"},
 						VViewName: "employee_view",
 						Direction: config.DirectionVertical,
@@ -827,7 +827,7 @@ func BenchmarkTagBlock_Insert50k(b *testing.B) {
 		b.StopTimer() // Pause for setup
 		ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 		gen := NewGenerator(ctx)
-		f := setupTemplate_TagBlock(b)
+		f := setupTemplate_ValueBlock(b)
 		adapter := &ExcelizeFile{file: f}
 		block := &wbConfig.Sheets[0].Blocks[0]
 		b.StartTimer() // Start measuring
