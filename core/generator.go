@@ -425,7 +425,7 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 	for r, rowItem := range rows {
 		for c, colItem := range cols {
 			// Construct parameters for this cell
-			cellParams := cloneParams(g.Context.Parameters)
+			cellParams := cloneParams(params)
 
 			// Resolve Tag Name -> Column Name first!
 			getColName := func(vViewName, tagName string) string {

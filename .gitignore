@@ -29,6 +29,7 @@ Thumbs.db
 *.swo
 
 # Output directory
-test/output/
+test/
+test_output/
 
 /spreadsheet-gen-csharp/
