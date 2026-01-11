@@ -11,30 +11,30 @@ const (
 type Direction string
 
 const (
-	DirectionVertical   Direction = "vertical"   // 纵向扩展
-	DirectionHorizontal Direction = "horizontal" // 横向扩展
+	DirectionVertical   Direction = "vertical"
+	DirectionHorizontal Direction = "horizontal"
 )
 
-// CellRange 用 A1:G33 这种字符串更适合 YAML/JSON
+// CellRange： cell range config
 type CellRange struct {
 	Ref string `json:"ref" yaml:"ref"` // e.g. "A1:G33"
 }
 
-// DataSourceConfig：数据源配置
+// DataSourceConfig：datasource config
 type DataSourceConfig struct {
 	Name   string `json:"name"   yaml:"name"`
 	Driver string `json:"driver" yaml:"driver"` // "mysql", "sqlserver", "postgres"
 	DSN    string `json:"dsn"    yaml:"dsn"`    // 连接串
 }
 
-// TagConfig：虚拟视图里的“标签字段”
+// TagConfig：virtual view里的“标签字段”配置
 type TagConfig struct {
-	Name   string `json:"name"   yaml:"name"`   // Tag 名
-	Column string `json:"column" yaml:"column"` // DB 列名
+	Name   string `json:"name"   yaml:"name"`   // tag name
+	Column string `json:"column" yaml:"column"` // actual column name in db
 	Type   string `json:"type,omitempty" yaml:"type,omitempty"`
 }
 
-// VirtualViewConfig：虚拟视图配置
+// VirtualViewConfig：virtual view config
 type VirtualViewConfig struct {
 	Id         string      `json:"id"         yaml:"id"`
 	Name       string      `json:"name"       yaml:"name"`
@@ -44,7 +44,7 @@ type VirtualViewConfig struct {
 	Tags       []TagConfig `json:"tags"       yaml:"tags"`
 }
 
-// BlockConfig：数据块基础配置
+// BlockConfig：config for a block
 type BlockConfig struct {
 	Name      string     `json:"name"          yaml:"name"`
 	Type      BlockType  `json:"type"          yaml:"type"`  // T / A / E
@@ -65,7 +65,7 @@ type BlockConfig struct {
 	SubBlocks []BlockConfig `json:"subBlocks,omitempty" yaml:"subBlocks,omitempty"`
 }
 
-// SheetConfig：工作表配置
+// SheetConfig：sheet range config
 type SheetConfig struct {
 	Name                string        `json:"name"         yaml:"name"`
 	Dynamic             bool          `json:"dynamic"      yaml:"dynamic"`
@@ -76,7 +76,7 @@ type SheetConfig struct {
 	Blocks              []BlockConfig `json:"blocks"       yaml:"blocks"`
 }
 
-// WorkbookConfig：整个工作簿
+// WorkbookConfig：workbook range config
 type WorkbookConfig struct {
 	Id          string            `json:"id"           yaml:"id"`
 	Name        string            `json:"name"         yaml:"name"`

@@ -3,6 +3,7 @@ package core
 import (
 	"fibr-gen/config"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,11 +37,11 @@ func cloneParams(params map[string]string) map[string]string {
 }
 
 // Generate executes the workbook generation process.
-func (g *Generator) Generate(templateRoot, outputRoot string) error {
+func (g *Generator) Generate(templateRoot, outputRoot string) (err error) {
 	wbConf := g.Context.WorkbookConfig
 	templatePath := filepath.Join(templateRoot, wbConf.Template)
 
-	// Replace parameters in output path (e.g. ${archivedate})
+	// Replace parameters in output path
 	outputPathStr := replacePlaceholders(wbConf.OutputDir, g.Context.Parameters)
 
 	outputPath := filepath.Join(outputRoot, outputPathStr)
@@ -54,7 +55,15 @@ func (g *Generator) Generate(templateRoot, outputRoot string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open template: %w", err)
 	}
-	defer f.Close()
+	defer func(f ExcelFile) {
+		if closeErr := f.Close(); closeErr != nil {
+			if err == nil {
+				err = fmt.Errorf("failed to close template file: %w", closeErr)
+			} else {
+				err = fmt.Errorf("%w; (cleanup error: %v)", err, closeErr)
+			}
+		}
+	}(f)
 
 	for _, sheetConf := range wbConf.Sheets {
 		if err := g.processSheet(f, &sheetConf); err != nil {
@@ -94,7 +103,7 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 	// Need to find VView Config
 	vViewConf, err := g.Context.ConfigProvider.GetVirtualViewConfig(sheetConf.VViewName)
 	if err != nil {
-		return fmt.Errorf("vview not found for dynamic sheet: %s", sheetConf.VViewName)
+		return fmt.Errorf("virtual view not found for dynamic sheet: %s", sheetConf.VViewName)
 	}
 
 	// Fetch data to get distinct values for ParamTag
@@ -117,7 +126,7 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 		}
 	}
 	if paramColumn == "" {
-		return fmt.Errorf("param tag %s not found in vview %s", sheetConf.ParamTag, sheetConf.VViewName)
+		return fmt.Errorf("param tag '%s' not found in virtual view %s", sheetConf.ParamTag, sheetConf.VViewName)
 	}
 
 	for _, row := range data {
@@ -211,9 +220,10 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 	for i := range block.SubBlocks {
 		sb := &block.SubBlocks[i]
 		if sb.Type == config.BlockTypeAxis {
-			if sb.Direction == config.DirectionVertical || sb.Direction == "" {
+			switch sb.Direction {
+			case config.DirectionVertical, "":
 				vAxis = sb
-			} else if sb.Direction == config.DirectionHorizontal {
+			case config.DirectionHorizontal:
 				hAxis = sb
 			}
 		}
@@ -275,29 +285,8 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 			}
 
 			// Copy Template Columns
-			// Identify template cols
-			minCol, maxCol := 999999, -1
-			for i := range block.SubBlocks {
-				sb := &block.SubBlocks[i]
-				// Skip Vertical Axis when expanding horizontally
-				if sb.Name == vAxis.Name {
-					continue
-				}
-				c1, _, c2, _, err := parseRange(sb.Range.Ref)
-				if err == nil {
-					if c1 < minCol {
-						minCol = c1
-					}
-					if c2 > maxCol {
-						maxCol = c2
-					}
-				}
-			}
-
-			if minCol <= maxCol {
-				if err := g.copyCols(f, sheetName, minCol, maxCol, endCol+1, insertCount); err != nil {
-					return fmt.Errorf("failed to copy template cols: %w", err)
-				}
+			if err := g.copyTemplateSlice(f, sheetName, block, vAxis.Name, endCol+1, insertCount, false); err != nil {
+				return err
 			}
 		}
 
@@ -322,28 +311,8 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 			axisHeight := endRow - startRow + 1
 			insertCount := (dataCount - 1) * axisHeight
 
-			minRow, maxRow := 999999, -1
-			for i := range block.SubBlocks {
-				sb := &block.SubBlocks[i]
-				// Skip Horizontal Axis when expanding vertically
-				if sb.Name == hAxis.Name {
-					continue
-				}
-				_, r1, _, r2, err := parseRange(sb.Range.Ref)
-				if err == nil {
-					if r1 < minRow {
-						minRow = r1
-					}
-					if r2 > maxRow {
-						maxRow = r2
-					}
-				}
-			}
-
-			if minRow <= maxRow {
-				if err := g.copyRows(f, sheetName, minRow, maxRow, endRow+1, insertCount); err != nil {
-					return fmt.Errorf("failed to copy template rows: %w", err)
-				}
+			if err := g.copyTemplateSlice(f, sheetName, block, hAxis.Name, endRow+1, insertCount, true); err != nil {
+				return err
 			}
 		}
 
@@ -369,28 +338,8 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 			}
 
 			// Copy Template Columns
-			minCol, maxCol := 999999, -1
-			for i := range block.SubBlocks {
-				sb := &block.SubBlocks[i]
-				// Skip Vertical Axis when expanding horizontally
-				if sb.Name == vAxis.Name {
-					continue
-				}
-				c1, _, c2, _, err := parseRange(sb.Range.Ref)
-				if err == nil {
-					if c1 < minCol {
-						minCol = c1
-					}
-					if c2 > maxCol {
-						maxCol = c2
-					}
-				}
-			}
-
-			if minCol <= maxCol {
-				if err := g.copyCols(f, sheetName, minCol, maxCol, endCol+1, insertCount); err != nil {
-					return fmt.Errorf("failed to copy template cols: %w", err)
-				}
+			if err := g.copyTemplateSlice(f, sheetName, block, vAxis.Name, endCol+1, insertCount, false); err != nil {
+				return err
 			}
 		}
 
@@ -425,47 +374,13 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 	}
 
 	// Pre-cache Template Content (Read-Once)
-	// We read the template values and styles once from the original position.
-	// Then we use this cache to fill all target cells.
-	type CellData struct {
-		Val   string
-		Style int
-	}
-	type TemplateCache struct {
-		Block    *config.BlockConfig
-		Cells    [][]CellData // [row][col]
-		StartCol int
-		StartRow int
-		Width    int
-		Height   int
-	}
-
-	var cachedTemplates []TemplateCache
+	var cachedTemplates []*TemplateCache
 	for _, tb := range templateBlocks {
-		c1, r1, c2, r2, err := parseRange(tb.Range.Ref)
+		cache, err := g.captureTemplate(f, sheetName, tb)
 		if err != nil {
 			return err
 		}
-		w := c2 - c1 + 1
-		h := r2 - r1 + 1
-		cells := make([][]CellData, h)
-		for r := 0; r < h; r++ {
-			cells[r] = make([]CellData, w)
-			for c := 0; c < w; c++ {
-				cn, _ := excelize.CoordinatesToCellName(c1+c, r1+r)
-				val, _ := f.GetCellValue(sheetName, cn)
-				sty, _ := f.GetCellStyle(sheetName, cn)
-				cells[r][c] = CellData{Val: val, Style: sty}
-			}
-		}
-		cachedTemplates = append(cachedTemplates, TemplateCache{
-			Block:    tb,
-			Cells:    cells,
-			StartCol: c1,
-			StartRow: r1,
-			Width:    w,
-			Height:   h,
-		})
+		cachedTemplates = append(cachedTemplates, cache)
 	}
 
 	rows := axisData
@@ -552,164 +467,136 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 					return err
 				}
 
-				rep := make(map[string]interface{})
+				var dataRow map[string]interface{}
 				if len(cellDataList) > 0 {
-					// Load tag mapping for this block
-					conf, _ := g.Context.ConfigProvider.GetVirtualViewConfig(cache.Block.VViewName)
-					if conf != nil {
-						for _, t := range conf.Tags {
-							if v, ok := cellDataList[0][t.Column]; ok {
-								rep[t.Name] = v
-							}
-						}
-					}
+					dataRow = cellDataList[0]
 				}
 
 				// Fill Cells
-				for tr := 0; tr < cache.Height; tr++ {
-					for tc := 0; tc < cache.Width; tc++ {
-						// Original Template
-						cell := cache.Cells[tr][tc]
-						val := cell.Val
-						style := cell.Style
-
-						// Replace
-						for tag, v := range rep {
-							ph := fmt.Sprintf("{%s}", tag)
-							if strings.Contains(val, ph) {
-								val = strings.ReplaceAll(val, ph, fmt.Sprintf("%v", v))
-							}
-						}
-
-						// Calculate Target Coord
-						targetC := cache.StartCol + colOffset + tc
-						targetR := cache.StartRow + rowOffset + tr
-
-						cn, _ := excelize.CoordinatesToCellName(targetC, targetR)
-						_ = f.SetCellValue(sheetName, cn, val)
-						if style != 0 {
-							_ = f.SetCellStyle(sheetName, cn, cn, style)
-						}
-					}
+				targetC := cache.StartCol + colOffset
+				targetR := cache.StartRow + rowOffset
+				if err := g.fillTemplate(f, sheetName, cache, targetC, targetR, dataRow); err != nil {
+					return err
 				}
 			}
 		}
 	}
 
+	return nil
+}
+
+func (g *Generator) copyTemplateSlice(f ExcelFile, sheetName string, block *config.BlockConfig, skipBlockName string, destStart, insertCount int, isRowMode bool) error {
+	minVal, maxVal := math.MaxInt, -1
+	for i := range block.SubBlocks {
+		sb := &block.SubBlocks[i]
+		if sb.Name == skipBlockName {
+			continue
+		}
+		c1, r1, c2, r2, err := parseRange(sb.Range.Ref)
+		if err == nil {
+			var v1, v2 int
+			if isRowMode {
+				v1, v2 = r1, r2
+			} else {
+				v1, v2 = c1, c2
+			}
+			if v1 < minVal {
+				minVal = v1
+			}
+			if v2 > maxVal {
+				maxVal = v2
+			}
+		}
+	}
+
+	if minVal <= maxVal {
+		if err := g.copySlice(f, sheetName, isRowMode, minVal, maxVal, destStart, insertCount); err != nil {
+			return fmt.Errorf("failed to copy template slice: %w", err)
+		}
+	}
+	return nil
+}
+
+// copySlice copies a range of rows or columns to a new location.
+// isRowMode: true for copying rows (vertical shift), false for copying columns (horizontal shift).
+// srcStart, srcEnd: range of rows (if isRowMode) or columns (if !isRowMode) to copy.
+// destStart: starting row (if isRowMode) or column (if !isRowMode) to paste.
+// count: number of rows/columns to paste (total destination size).
+func (g *Generator) copySlice(f ExcelFile, sheet string, isRowMode bool, srcStart, srcEnd, destStart, count int) error {
+	srcSize := srcEnd - srcStart + 1
+	type cellData struct {
+		val   string
+		style int
+	}
+	srcMap := make(map[int]cellData)
+
+	// Determine limits
+	dims, err := f.GetSheetDimension(sheet)
+	if err != nil {
+		return err
+	}
+	_, _, maxC, maxR, err := parseRange(dims)
+	if err != nil {
+		maxC, maxR = 100, 1000 // Fallback
+	}
+
+	limit := maxC
+	if !isRowMode {
+		limit = maxR
+	}
+
+	// 1. Read Source
+	for p := srcStart; p <= srcEnd; p++ { // Primary loop (row if isRowMode, col if !isRowMode)
+		for s := 1; s <= limit; s++ { // Secondary loop (col if isRowMode, row if !isRowMode)
+			var c, r int
+			if isRowMode {
+				c, r = s, p
+			} else {
+				c, r = p, s
+			}
+			cn, _ := excelize.CoordinatesToCellName(c, r)
+			val, _ := f.GetCellValue(sheet, cn)
+			style, _ := f.GetCellStyle(sheet, cn)
+			// Key: (PrimaryOffset * 10000) + SecondaryIndex
+			key := (p-srcStart)*10000 + s
+			srcMap[key] = cellData{val, style}
+		}
+	}
+
+	// 2. Write to Dest
+	for i := range count {
+		srcOffset := i % srcSize
+		destP := destStart + i
+
+		for s := 1; s <= limit; s++ {
+			key := srcOffset*10000 + s
+			if data, ok := srcMap[key]; ok {
+				var c, r int
+				if isRowMode {
+					c, r = s, destP
+				} else {
+					c, r = destP, s
+				}
+				cn, _ := excelize.CoordinatesToCellName(c, r)
+				_ = f.SetCellValue(sheet, cn, data.val)
+				if data.style != 0 {
+					_ = f.SetCellStyle(sheet, cn, cn, data.style)
+				}
+			}
+		}
+	}
 	return nil
 }
 
 // copyRows copies a range of rows to a new location, replicating them count times.
 func (g *Generator) copyRows(f ExcelFile, sheet string, srcStartRow, srcEndRow, destStartRow, insertHeight int) error {
-	// 1. Read Source Data
-	srcHeight := srcEndRow - srcStartRow + 1
-	type cellData struct {
-		val   string
-		style int
-	}
-	// Map: ColIndex -> cellData
-	srcMap := make(map[int]cellData)
-
-	// Determine max column used in the sheet
-	dims, err := f.GetSheetDimension(sheet)
-	if err != nil {
-		return err
-	}
-	_, _, maxC, _, err := parseRange(dims)
-	if err != nil {
-		maxC = 100 // Fallback
-	}
-
-	for r := srcStartRow; r <= srcEndRow; r++ {
-		for c := 1; c <= maxC; c++ {
-			cn, _ := excelize.CoordinatesToCellName(c, r)
-			val, _ := f.GetCellValue(sheet, cn)
-			style, _ := f.GetCellStyle(sheet, cn)
-			srcMap[(r-srcStartRow)*10000+c] = cellData{val, style}
-		}
-	}
-
-	// 2. Write to Dest
-	for i := 0; i < insertHeight; i++ {
-		srcOffset := i % srcHeight
-		destRow := destStartRow + i
-
-		for c := 1; c <= maxC; c++ {
-			key := srcOffset*10000 + c
-			if data, ok := srcMap[key]; ok {
-				cn, _ := excelize.CoordinatesToCellName(c, destRow)
-				_ = f.SetCellValue(sheet, cn, data.val)
-				if data.style != 0 {
-					_ = f.SetCellStyle(sheet, cn, cn, data.style)
-				}
-			}
-		}
-	}
-	return nil
+	return g.copySlice(f, sheet, true, srcStartRow, srcEndRow, destStartRow, insertHeight)
 }
 
 // copyCols copies a range of columns to a new location.
 func (g *Generator) copyCols(f ExcelFile, sheet string, srcStartCol, srcEndCol, destStartCol, insertWidth int) error {
-	srcWidth := srcEndCol - srcStartCol + 1
-
-	type cellData struct {
-		val   string
-		style int
-	}
-	srcMap := make(map[int]cellData)
-
-	dims, err := f.GetSheetDimension(sheet)
-	if err != nil {
-		return err
-	}
-	_, _, _, maxR, err := parseRange(dims)
-	if err != nil {
-		maxR = 1000
-	}
-
-	for c := srcStartCol; c <= srcEndCol; c++ {
-		for r := 1; r <= maxR; r++ {
-			cn, _ := excelize.CoordinatesToCellName(c, r)
-			val, _ := f.GetCellValue(sheet, cn)
-			style, _ := f.GetCellStyle(sheet, cn)
-			srcMap[(c-srcStartCol)*10000+r] = cellData{val, style}
-		}
-	}
-
-	for i := 0; i < insertWidth; i++ {
-		srcOffset := i % srcWidth
-		destCol := destStartCol + i
-
-		for r := 1; r <= maxR; r++ {
-			key := srcOffset*10000 + r
-			if data, ok := srcMap[key]; ok {
-				cn, _ := excelize.CoordinatesToCellName(destCol, r)
-				_ = f.SetCellValue(sheet, cn, data.val)
-				if data.style != 0 {
-					_ = f.SetCellStyle(sheet, cn, cn, data.style)
-				}
-			}
-		}
-	}
-	return nil
+	return g.copySlice(f, sheet, false, srcStartCol, srcEndCol, destStartCol, insertWidth)
 }
-
-// Helper to shift range "A1:B2" by (colOffset, rowOffset)
-// func shiftRange(ref string, colOffset, rowOffset int) (string, error) {
-// 	c1, r1, c2, r2, err := parseRange(ref)
-// 	if err != nil {
-// 		return "", err
-// 	}
-
-// 	c1 += colOffset
-// 	c2 += colOffset
-// 	r1 += rowOffset
-// 	r2 += rowOffset
-
-// 	n1, _ := excelize.CoordinatesToCellName(c1, r1)
-// 	n2, _ := excelize.CoordinatesToCellName(c2, r2)
-// 	return n1 + ":" + n2, nil
-// }
 
 func (g *Generator) processTagBlock(f ExcelFile, sheetName string, block *config.BlockConfig) error {
 	return g.processTagBlockWithParams(f, sheetName, block, g.Context.Parameters)
@@ -724,22 +611,6 @@ func (g *Generator) processTagBlockWithParams(f ExcelFile, sheetName string, blo
 	if len(data) == 0 {
 		return nil // No data
 	}
-
-	// Resolve tags
-	// vview, ok := g.Context.VViewConfigs[block.VViewName]
-	// if !ok {
-	// 	return fmt.Errorf("vview not found: %s", block.VViewName)
-	// }
-	// We need VView for tags.
-	// But wait, GetBlockDataWithParams might have filtered it.
-	// But we need the config to know the tags mapping.
-	// Since we are moving to VView struct, maybe GetBlockData should return VView?
-	// For now, let's keep it simple and just look up the config again.
-
-	// vView, err := g.Context.ConfigProvider.GetVirtualViewConfig(block.VViewName)
-	// if err != nil {
-	// 	return fmt.Errorf("vview not found: %s", block.VViewName)
-	// }
 
 	// Determine direction (default: vertical)
 	isVertical := block.Direction == config.DirectionVertical || block.Direction == ""
@@ -783,83 +654,166 @@ func (g *Generator) processTagBlockWithParams(f ExcelFile, sheetName string, blo
 	return g.fillBlockData(f, sheetName, block, data)
 }
 
-// fillBlockData fills a block with data, handling template caching and tag replacement.
+// CellData fillBlockData fills a block with data, handling template caching and tag replacement.
 // It assumes any necessary expansion (inserting rows/cols) has already been done.
-func (g *Generator) fillBlockData(f *excelize.File, sheetName string, block *config.BlockConfig, data []map[string]interface{}) error {
-	// Resolve VView for tags
-	vv, err := g.Context.ConfigProvider.GetVirtualViewConfig(block.VViewName)
-	if err != nil {
-		return fmt.Errorf("vview not found: %s", block.VViewName)
-	}
+type CellData struct {
+	Val   string
+	Style int
+}
 
-	// Determine direction
-	isVert := block.Direction == config.DirectionVertical || block.Direction == ""
+type RelativeMerge struct {
+	StartCol, StartRow, EndCol, EndRow int
+}
 
-	// Parse Range
+type TemplateCache struct {
+	Block    *config.BlockConfig
+	Cells    [][]CellData // [row][col]
+	Merged   []RelativeMerge
+	StartCol int
+	StartRow int
+	Width    int
+	Height   int
+}
+
+func (g *Generator) captureTemplate(f ExcelFile, sheetName string, block *config.BlockConfig) (*TemplateCache, error) {
 	c1, r1, c2, r2, err := parseRange(block.Range.Ref)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	bH := r2 - r1 + 1
-	bW := c2 - c1 + 1
-
-	// Cache Template
-	tmplPat := make([][]string, bH)
-	tmplSty := make([][]int, bH)
-	for r := 0; r < bH; r++ {
-		tmplPat[r] = make([]string, bW)
-		tmplSty[r] = make([]int, bW)
-		for c := 0; c < bW; c++ {
+	w := c2 - c1 + 1
+	h := r2 - r1 + 1
+	cells := make([][]CellData, h)
+	for r := range h {
+		cells[r] = make([]CellData, w)
+		for c := range w {
 			cn, _ := excelize.CoordinatesToCellName(c1+c, r1+r)
 			val, _ := f.GetCellValue(sheetName, cn)
 			sty, _ := f.GetCellStyle(sheetName, cn)
-			tmplPat[r][c] = val
-			tmplSty[r][c] = sty
+			cells[r][c] = CellData{Val: val, Style: sty}
 		}
 	}
+
+	// Capture Merged Cells
+	var relativeMerges []RelativeMerge
+	mergedCells, err := f.GetMergeCells(sheetName)
+	if err == nil {
+		for _, mc := range mergedCells {
+			mcStart, mcEnd := mc.GetStartAxis(), mc.GetEndAxis()
+			mcC1, mcR1, err := excelize.CellNameToCoordinates(mcStart)
+			if err != nil {
+				continue
+			}
+			mcC2, mcR2, err := excelize.CellNameToCoordinates(mcEnd)
+			if err != nil {
+				continue
+			}
+
+			// Check if merge is fully contained in the block
+			if mcC1 >= c1 && mcR1 >= r1 && mcC2 <= c2 && mcR2 <= r2 {
+				relativeMerges = append(relativeMerges, RelativeMerge{
+					StartCol: mcC1 - c1,
+					StartRow: mcR1 - r1,
+					EndCol:   mcC2 - c1,
+					EndRow:   mcR2 - r1,
+				})
+			}
+		}
+	}
+
+	return &TemplateCache{
+		Block:    block,
+		Cells:    cells,
+		Merged:   relativeMerges,
+		StartCol: c1,
+		StartRow: r1,
+		Width:    w,
+		Height:   h,
+	}, nil
+}
+
+func (g *Generator) fillTemplate(f ExcelFile, sheetName string, cache *TemplateCache, targetCol, targetRow int, data map[string]interface{}) error {
+	// Replacement map
+	rep := make(map[string]interface{})
+	if data != nil {
+		vv, err := g.Context.ConfigProvider.GetVirtualViewConfig(cache.Block.VViewName)
+		if err == nil {
+			for _, t := range vv.Tags {
+				if v, ok := data[t.Column]; ok {
+					rep[t.Name] = v
+				}
+			}
+		}
+	}
+
+	for r := 0; r < cache.Height; r++ {
+		for c := 0; c < cache.Width; c++ {
+			cell := cache.Cells[r][c]
+			val := cell.Val
+			style := cell.Style
+
+			// Replace
+			for t, v := range rep {
+				ph := fmt.Sprintf("{%s}", t)
+				if strings.Contains(val, ph) {
+					val = strings.ReplaceAll(val, ph, fmt.Sprintf("%v", v))
+				}
+			}
+
+			tcn, _ := excelize.CoordinatesToCellName(targetCol+c, targetRow+r)
+			if err := f.SetCellValue(sheetName, tcn, val); err != nil {
+				return err
+			}
+			if style != 0 {
+				if err := f.SetCellStyle(sheetName, tcn, tcn, style); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Apply Merged Cells
+	for _, rm := range cache.Merged {
+		c1, r1 := targetCol+rm.StartCol, targetRow+rm.StartRow
+		c2, r2 := targetCol+rm.EndCol, targetRow+rm.EndRow
+
+		startCell, err := excelize.CoordinatesToCellName(c1, r1)
+		if err != nil {
+			return err
+		}
+		endCell, err := excelize.CoordinatesToCellName(c2, r2)
+		if err != nil {
+			return err
+		}
+
+		if err := f.MergeCell(sheetName, startCell, endCell); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (g *Generator) fillBlockData(f ExcelFile, sheetName string, block *config.BlockConfig, data []map[string]interface{}) error {
+	// Capture Template
+	cache, err := g.captureTemplate(f, sheetName, block)
+	if err != nil {
+		return err
+	}
+
+	isVert := block.Direction == config.DirectionVertical || block.Direction == ""
 
 	// Iterate
 	for i, row := range data {
 		rOff, cOff := 0, 0
 		if isVert {
-			rOff = i * bH
+			rOff = i * cache.Height
 		} else {
-			cOff = i * bW
-		}
-
-		// Replacement map
-		rep := make(map[string]interface{})
-		for _, t := range vv.Tags {
-			if v, ok := row[t.Column]; ok {
-				rep[t.Name] = v
-			}
+			cOff = i * cache.Width
 		}
 
 		// Fill
-		for r := 0; r < bH; r++ {
-			for c := 0; c < bW; c++ {
-				// Coords
-				tc, tr := c1+c+cOff, r1+r+rOff
-				tcn, _ := excelize.CoordinatesToCellName(tc, tr)
-
-				val := tmplPat[r][c]
-				sty := tmplSty[r][c]
-
-				// Replace
-				for t, v := range rep {
-					ph := fmt.Sprintf("{%s}", t)
-					if strings.Contains(val, ph) {
-						val = strings.ReplaceAll(val, ph, fmt.Sprintf("%v", v))
-					}
-				}
-
-				if err := f.SetCellValue(sheetName, tcn, val); err != nil {
-					return err
-				}
-				if err := f.SetCellStyle(sheetName, tcn, tcn, sty); err != nil {
-					return err
-				}
-			}
+		if err := g.fillTemplate(f, sheetName, cache, cache.StartCol+cOff, cache.StartRow+rOff, row); err != nil {
+			return err
 		}
 	}
 	return nil
