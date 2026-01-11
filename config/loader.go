@@ -53,6 +53,85 @@ func LoadDataSourceConfig(path string) (*DataSourceConfig, error) {
 	return &cfg, nil
 }
 
+type BundleConfig struct {
+	Workbook     *WorkbookConfig      `yaml:"workbook"`
+	VirtualViews []*VirtualViewConfig `yaml:"virtualViews"`
+	DataSources  []*DataSourceConfig  `yaml:"dataSources"`
+}
+
+type DataSourcesBundle struct {
+	DataSources []*DataSourceConfig `yaml:"dataSources"`
+}
+
+// LoadConfigBundle loads a single configuration bundle from a YAML file.
+// It includes one workbook, and optional virtual views and data sources.
+func LoadConfigBundle(path string) (*WorkbookConfig, map[string]*VirtualViewConfig, map[string]*DataSourceConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to read config bundle: %w", err)
+	}
+
+	var bundle BundleConfig
+	if err := yaml.Unmarshal(data, &bundle); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to parse config bundle: %w", err)
+	}
+
+	if bundle.Workbook == nil {
+		return nil, nil, nil, fmt.Errorf("config bundle missing workbook")
+	}
+
+	vViews := make(map[string]*VirtualViewConfig)
+	for _, view := range bundle.VirtualViews {
+		if view == nil || view.Name == "" {
+			return nil, nil, nil, fmt.Errorf("virtual view config missing name")
+		}
+		if _, exists := vViews[view.Name]; exists {
+			return nil, nil, nil, fmt.Errorf("duplicate virtual view name: %s", view.Name)
+		}
+		vViews[view.Name] = view
+	}
+
+	dataSources := make(map[string]*DataSourceConfig)
+	for _, source := range bundle.DataSources {
+		if source == nil || source.Name == "" {
+			return nil, nil, nil, fmt.Errorf("data source config missing name")
+		}
+		if _, exists := dataSources[source.Name]; exists {
+			return nil, nil, nil, fmt.Errorf("duplicate data source name: %s", source.Name)
+		}
+		dataSources[source.Name] = source
+	}
+
+	return bundle.Workbook, vViews, dataSources, nil
+}
+
+// LoadDataSourcesBundle loads data source configurations from a YAML file.
+// The file should contain a dataSources list.
+func LoadDataSourcesBundle(path string) (map[string]*DataSourceConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read data source bundle: %w", err)
+	}
+
+	var bundle DataSourcesBundle
+	if err := yaml.Unmarshal(data, &bundle); err != nil {
+		return nil, fmt.Errorf("failed to parse data source bundle: %w", err)
+	}
+
+	dataSources := make(map[string]*DataSourceConfig)
+	for _, source := range bundle.DataSources {
+		if source == nil || source.Name == "" {
+			return nil, fmt.Errorf("data source config missing name")
+		}
+		if _, exists := dataSources[source.Name]; exists {
+			return nil, fmt.Errorf("duplicate data source name: %s", source.Name)
+		}
+		dataSources[source.Name] = source
+	}
+
+	return dataSources, nil
+}
+
 // LoadAllConfigs loads all configurations from a directory.
 // It expects subdirectories or naming conventions to distinguish types,
 // or it tries to parse into different structs.
