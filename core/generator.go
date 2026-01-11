@@ -456,7 +456,7 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 				}
 			}
 
-			hCol := getColName(hAxis.DataViewName, hKey)
+			hCol := getLabelName(hAxis.DataViewName, hKey)
 			if hCol != "" {
 				if val, ok := colItem[hCol]; ok {
 					cellParams[hKey] = fmt.Sprintf("%v", val)
