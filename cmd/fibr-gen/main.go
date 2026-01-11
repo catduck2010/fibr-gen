@@ -22,7 +22,7 @@ func main() {
 
 	// 1. Load Configs
 	slog.Info("Loading configurations", "dir", *configDir)
-	wbs, vviews, _, err := config.LoadAllConfigs(*configDir)
+	wbs, vViews, _, err := config.LoadAllConfigs(*configDir)
 	if err != nil {
 		slog.Error("Failed to load configs", "error", err)
 		os.Exit(1)
@@ -44,7 +44,7 @@ func main() {
 		slog.Info("Processing Workbook", "name", wbConf.Name, "id", wbConf.Id)
 
 		// Create Config Registry
-		configRegistry := config.NewMemoryConfigRegistry(vviews)
+		configRegistry := config.NewMemoryConfigRegistry(vViews)
 
 		// Create Context
 		// Pass Registry instead of raw map

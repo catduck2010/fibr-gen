@@ -400,90 +400,13 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 		}
 	}
 
-	// Helper to fill a block without expansion
-	fillBlockSimple := func(b *config.BlockConfig, data []map[string]interface{}) error {
-		// Resolve VView for tags
-		vv, err := g.Context.ConfigProvider.GetVirtualViewConfig(b.VViewName)
-		if err != nil {
-			return fmt.Errorf("vview not found: %s", b.VViewName)
-		}
-
-		// Determine direction
-		isVert := b.Direction == config.DirectionVertical || b.Direction == ""
-
-		// Parse Range
-		c1, r1, c2, r2, err := parseRange(b.Range.Ref)
-		if err != nil {
-			return err
-		}
-		bH := r2 - r1 + 1
-		bW := c2 - c1 + 1
-
-		// Cache Template
-		tmplPat := make([][]string, bH)
-		tmplSty := make([][]int, bH)
-		for r := 0; r < bH; r++ {
-			tmplPat[r] = make([]string, bW)
-			tmplSty[r] = make([]int, bW)
-			for c := 0; c < bW; c++ {
-				cn, _ := excelize.CoordinatesToCellName(c1+c, r1+r)
-				val, _ := f.GetCellValue(sheetName, cn)
-				sty, _ := f.GetCellStyle(sheetName, cn)
-				tmplPat[r][c] = val
-				tmplSty[r][c] = sty
-			}
-		}
-
-		// Iterate
-		for i, row := range data {
-			rOff, cOff := 0, 0
-			if isVert {
-				rOff = i * bH
-			} else {
-				cOff = i * bW
-			}
-
-			// Replacement map
-			rep := make(map[string]interface{})
-			for _, t := range vv.Tags {
-				if v, ok := row[t.Column]; ok {
-					rep[t.Name] = v
-				}
-			}
-
-			// Fill
-			for r := 0; r < bH; r++ {
-				for c := 0; c < bW; c++ {
-					// Coords
-					tc, tr := c1+c+cOff, r1+r+rOff
-					tcn, _ := excelize.CoordinatesToCellName(tc, tr)
-
-					val := tmplPat[r][c]
-					sty := tmplSty[r][c]
-
-					// Replace
-					for t, v := range rep {
-						ph := fmt.Sprintf("{%s}", t)
-						if strings.Contains(val, ph) {
-							val = strings.ReplaceAll(val, ph, fmt.Sprintf("%v", v))
-						}
-					}
-
-					_ = f.SetCellValue(sheetName, tcn, val)
-					_ = f.SetCellStyle(sheetName, tcn, tcn, sty)
-				}
-			}
-		}
-		return nil
-	}
-
 	// Fill vAxis Headers
-	if err := fillBlockSimple(vAxis, axisData); err != nil {
+	if err := g.fillBlockData(f, sheetName, vAxis, axisData); err != nil {
 		return fmt.Errorf("failed to fill vAxis headers: %w", err)
 	}
 
 	// Fill hAxis Headers
-	if err := fillBlockSimple(hAxis, staticData); err != nil {
+	if err := g.fillBlockData(f, sheetName, hAxis, staticData); err != nil {
 		return fmt.Errorf("failed to fill hAxis headers: %w", err)
 	}
 
@@ -576,9 +499,8 @@ func (g *Generator) processExpandableBlockWithParams(f ExcelFile, sheetName stri
 		return err
 	}
 
-	// Re-parse ranges to get dimensions for stepping
-	_, _, _, vEndRow, _ := parseRange(vAxis.Range.Ref)
-	_, vStartRow, _, _, _ := parseRange(vAxis.Range.Ref)
+	// Reparse ranges to get dimensions for stepping
+	_, vStartRow, _, vEndRow, _ := parseRange(vAxis.Range.Ref)
 	vStep := vEndRow - vStartRow + 1
 
 	hStartCol, _, hEndCol, _, _ := parseRange(hAxis.Range.Ref)
@@ -814,10 +736,10 @@ func (g *Generator) processTagBlockWithParams(f ExcelFile, sheetName string, blo
 	// Since we are moving to VView struct, maybe GetBlockData should return VView?
 	// For now, let's keep it simple and just look up the config again.
 
-	vView, err := g.Context.ConfigProvider.GetVirtualViewConfig(block.VViewName)
-	if err != nil {
-		return fmt.Errorf("vview not found: %s", block.VViewName)
-	}
+	// vView, err := g.Context.ConfigProvider.GetVirtualViewConfig(block.VViewName)
+	// if err != nil {
+	// 	return fmt.Errorf("vview not found: %s", block.VViewName)
+	// }
 
 	// Determine direction (default: vertical)
 	isVertical := block.Direction == config.DirectionVertical || block.Direction == ""
@@ -857,70 +779,89 @@ func (g *Generator) processTagBlockWithParams(f ExcelFile, sheetName string, blo
 		}
 	}
 
-	// 2. Cache Template Pattern (Values and Styles)
-	// We must read the template cells BEFORE we start filling data,
-	// because the first iteration (i=0) will overwrite the template cells with actual values.
-	templatePattern := make([][]string, blockHeight)
-	templateStyles := make([][]int, blockHeight)
-	for r := 0; r < blockHeight; r++ {
-		templatePattern[r] = make([]string, blockWidth)
-		templateStyles[r] = make([]int, blockWidth)
-		for c := 0; c < blockWidth; c++ {
-			cellName, _ := excelize.CoordinatesToCellName(startCol+c, startRow+r)
-			val, _ := f.GetCellValue(sheetName, cellName)
-			styleID, _ := f.GetCellStyle(sheetName, cellName)
-			templatePattern[r][c] = val
-			templateStyles[r][c] = styleID
+	// 2. Fill Data
+	return g.fillBlockData(f, sheetName, block, data)
+}
+
+// fillBlockData fills a block with data, handling template caching and tag replacement.
+// It assumes any necessary expansion (inserting rows/cols) has already been done.
+func (g *Generator) fillBlockData(f *excelize.File, sheetName string, block *config.BlockConfig, data []map[string]interface{}) error {
+	// Resolve VView for tags
+	vv, err := g.Context.ConfigProvider.GetVirtualViewConfig(block.VViewName)
+	if err != nil {
+		return fmt.Errorf("vview not found: %s", block.VViewName)
+	}
+
+	// Determine direction
+	isVert := block.Direction == config.DirectionVertical || block.Direction == ""
+
+	// Parse Range
+	c1, r1, c2, r2, err := parseRange(block.Range.Ref)
+	if err != nil {
+		return err
+	}
+	bH := r2 - r1 + 1
+	bW := c2 - c1 + 1
+
+	// Cache Template
+	tmplPat := make([][]string, bH)
+	tmplSty := make([][]int, bH)
+	for r := 0; r < bH; r++ {
+		tmplPat[r] = make([]string, bW)
+		tmplSty[r] = make([]int, bW)
+		for c := 0; c < bW; c++ {
+			cn, _ := excelize.CoordinatesToCellName(c1+c, r1+r)
+			val, _ := f.GetCellValue(sheetName, cn)
+			sty, _ := f.GetCellStyle(sheetName, cn)
+			tmplPat[r][c] = val
+			tmplSty[r][c] = sty
 		}
 	}
 
-	// 3. Iterate and Fill
-	for i, rowData := range data {
-		// Calculate current offset
-		rowOffset := 0
-		colOffset := 0
-		if isVertical {
-			rowOffset = i * blockHeight
+	// Iterate
+	for i, row := range data {
+		rOff, cOff := 0, 0
+		if isVert {
+			rOff = i * bH
 		} else {
-			colOffset = i * blockWidth
+			cOff = i * bW
 		}
 
-		// Build replacement map for this row
-		replacements := make(map[string]interface{})
-		for _, tag := range vView.Tags {
-			if val, ok := rowData[tag.Column]; ok {
-				replacements[tag.Name] = val
+		// Replacement map
+		rep := make(map[string]interface{})
+		for _, t := range vv.Tags {
+			if v, ok := row[t.Column]; ok {
+				rep[t.Name] = v
 			}
 		}
 
-		// Iterate over the block cells
-		for r := 0; r < blockHeight; r++ {
-			for c := 0; c < blockWidth; c++ {
-				// Target cell coords
-				tmplC, tmplR := startCol+c, startRow+r
-				targetC, targetR := tmplC+colOffset, tmplR+rowOffset
+		// Fill
+		for r := 0; r < bH; r++ {
+			for c := 0; c < bW; c++ {
+				// Coords
+				tc, tr := c1+c+cOff, r1+r+rOff
+				tcn, _ := excelize.CoordinatesToCellName(tc, tr)
 
-				// Use CACHED template pattern and style
-				val := templatePattern[r][c]
-				styleID := templateStyles[r][c]
+				val := tmplPat[r][c]
+				sty := tmplSty[r][c]
 
-				targetCellName, _ := excelize.CoordinatesToCellName(targetC, targetR)
-
-				// Perform replacement
-				currentVal := val
-				for tag, v := range replacements {
-					placeholder := fmt.Sprintf("{%s}", tag)
-					if strings.Contains(currentVal, placeholder) {
-						currentVal = strings.ReplaceAll(currentVal, placeholder, fmt.Sprintf("%v", v))
+				// Replace
+				for t, v := range rep {
+					ph := fmt.Sprintf("{%s}", t)
+					if strings.Contains(val, ph) {
+						val = strings.ReplaceAll(val, ph, fmt.Sprintf("%v", v))
 					}
 				}
 
-				_ = f.SetCellValue(sheetName, targetCellName, currentVal)
-				_ = f.SetCellStyle(sheetName, targetCellName, targetCellName, styleID)
+				if err := f.SetCellValue(sheetName, tcn, val); err != nil {
+					return err
+				}
+				if err := f.SetCellStyle(sheetName, tcn, tcn, sty); err != nil {
+					return err
+				}
 			}
 		}
 	}
-
 	return nil
 }
 
