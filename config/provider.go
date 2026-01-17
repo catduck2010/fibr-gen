@@ -5,17 +5,20 @@ import "fmt"
 // Provider defines the interface for retrieving configurations.
 type Provider interface {
 	GetDataViewConfig(name string) (*DataViewConfig, error)
+	GetDataSourceConfig(name string) (*DataSourceConfig, error)
 }
 
 // MemoryConfigRegistry implements Provider using an in-memory map.
 type MemoryConfigRegistry struct {
-	dataViews map[string]*DataViewConfig
+	dataViews   map[string]*DataViewConfig
+	dataSources map[string]*DataSourceConfig
 }
 
 // NewMemoryConfigRegistry creates a new registry with the given configurations.
-func NewMemoryConfigRegistry(v map[string]*DataViewConfig) *MemoryConfigRegistry {
+func NewMemoryConfigRegistry(views map[string]*DataViewConfig, sources map[string]*DataSourceConfig) *MemoryConfigRegistry {
 	return &MemoryConfigRegistry{
-		dataViews: v,
+		dataViews:   views,
+		dataSources: sources,
 	}
 }
 
@@ -24,5 +27,13 @@ func (r *MemoryConfigRegistry) GetDataViewConfig(name string) (*DataViewConfig, 
 	if conf, ok := r.dataViews[name]; ok {
 		return conf, nil
 	}
-	return nil, fmt.Errorf("virtual view config not found: %s", name)
+	return nil, fmt.Errorf("data view config not found: %s", name)
+}
+
+// GetDataSourceConfig retrieves a DataSourceConfig by name.
+func (r *MemoryConfigRegistry) GetDataSourceConfig(name string) (*DataSourceConfig, error) {
+	if conf, ok := r.dataSources[name]; ok {
+		return conf, nil
+	}
+	return nil, fmt.Errorf("data source config not found: %s", name)
 }

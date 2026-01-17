@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/xuri/excelize/v2 v2.10.0
 	gopkg.in/yaml.v3 v3.0.1
+	github.com/aws/aws-lambda-go v1.47.0
 )
 
 require (

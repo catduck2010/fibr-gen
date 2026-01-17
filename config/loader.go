@@ -23,16 +23,16 @@ func LoadWorkbookConfig(path string) (*WorkbookConfig, error) {
 	return &cfg, nil
 }
 
-// LoadDataViewConfig loads a virtual view configuration from a YAML file.
+// LoadDataViewConfig loads a data view configuration from a YAML file.
 func LoadDataViewConfig(path string) (*DataViewConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read virtual view config file: %w", err)
+		return nil, fmt.Errorf("failed to read data view config file: %w", err)
 	}
 
 	var cfg DataViewConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse virtual view config: %w", err)
+		return nil, fmt.Errorf("failed to parse data view config: %w", err)
 	}
 
 	return &cfg, nil
@@ -83,10 +83,10 @@ func LoadConfigBundle(path string) (*WorkbookConfig, map[string]*DataViewConfig,
 	views := make(map[string]*DataViewConfig)
 	for _, view := range bundle.DataViews {
 		if view == nil || view.Name == "" {
-			return nil, nil, nil, fmt.Errorf("virtual view config missing name")
+			return nil, nil, nil, fmt.Errorf("data view config missing name")
 		}
 		if _, exists := views[view.Name]; exists {
-			return nil, nil, nil, fmt.Errorf("duplicate virtual view name: %s", view.Name)
+			return nil, nil, nil, fmt.Errorf("duplicate data view name: %s", view.Name)
 		}
 		views[view.Name] = view
 	}
@@ -100,6 +100,26 @@ func LoadConfigBundle(path string) (*WorkbookConfig, map[string]*DataViewConfig,
 			return nil, nil, nil, fmt.Errorf("duplicate data source name: %s", source.Name)
 		}
 		dataSources[source.Name] = source
+	}
+
+	// Validate configuration
+	registry := NewMemoryConfigRegistry(views, dataSources)
+	validator := NewValidator(registry)
+
+	for _, view := range views {
+		if err := validator.ValidateDataView(view); err != nil {
+			return nil, nil, nil, fmt.Errorf("data view '%s' validation failed: %w", view.Name, err)
+		}
+	}
+
+	for _, source := range dataSources {
+		if err := validator.ValidateDataSource(source); err != nil {
+			return nil, nil, nil, fmt.Errorf("data source '%s' validation failed: %w", source.Name, err)
+		}
+	}
+
+	if err := validator.ValidateWorkbook(bundle.Workbook); err != nil {
+		return nil, nil, nil, fmt.Errorf("workbook validation failed: %w", err)
 	}
 
 	return bundle.Workbook, views, dataSources, nil
@@ -206,6 +226,28 @@ func LoadAllConfigs(rootDir string) (map[string]*WorkbookConfig, map[string]*Dat
 	})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("loading workbooks: %w", err)
+	}
+
+	// Validate all configurations
+	registry := NewMemoryConfigRegistry(views, dataSources)
+	validator := NewValidator(registry)
+
+	for _, view := range views {
+		if err := validator.ValidateDataView(view); err != nil {
+			return nil, nil, nil, fmt.Errorf("data view '%s' validation failed: %w", view.Name, err)
+		}
+	}
+
+	for _, source := range dataSources {
+		if err := validator.ValidateDataSource(source); err != nil {
+			return nil, nil, nil, fmt.Errorf("data source '%s' validation failed: %w", source.Name, err)
+		}
+	}
+
+	for _, wb := range workbooks {
+		if err := validator.ValidateWorkbook(wb); err != nil {
+			return nil, nil, nil, fmt.Errorf("workbook '%s' validation failed: %w", wb.Name, err)
+		}
 	}
 
 	return workbooks, views, dataSources, nil

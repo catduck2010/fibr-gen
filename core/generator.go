@@ -112,7 +112,7 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 	// Need to find DataView Config
 	conf, err := g.Context.ConfigProvider.GetDataViewConfig(sheetConf.DataViewName)
 	if err != nil {
-		return fmt.Errorf("virtual view not found for dynamic sheet: %s", sheetConf.DataViewName)
+		return fmt.Errorf("data view not found for dynamic sheet: %s", sheetConf.DataViewName)
 	}
 
 	// Fetch data to get distinct values for ParamLabel
@@ -135,7 +135,7 @@ func (g *Generator) processDynamicSheet(f ExcelFile, sheetConf *config.SheetConf
 		}
 	}
 	if paramColumn == "" {
-		return fmt.Errorf("param label '%s' not found in virtual view %s", sheetConf.ParamLabel, sheetConf.DataViewName)
+		return fmt.Errorf("param label '%s' not found in data view %s", sheetConf.ParamLabel, sheetConf.DataViewName)
 	}
 
 	for _, row := range data {
@@ -220,50 +220,47 @@ func (g *Generator) processBlockWithParams(f ExcelFile, sheetName string, block 
 }
 
 func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, block *config.BlockConfig, params map[string]string) error {
-	// ... (content of processMatrixBlock but using params instead of g.Context.Parameters)
-	// We need to change g.Context.GetBlockData(vAxis) to GetBlockDataWithParams(vAxis, params)
-
 	// 1. Identify Axes
-	var vAxis, hAxis *config.BlockConfig
+	var vH, hH *config.BlockConfig
 	for i := range block.SubBlocks {
 		sb := &block.SubBlocks[i]
 		if sb.Type == config.BlockTypeHeader {
 			switch sb.Direction {
 			case config.DirectionVertical, "":
-				vAxis = sb
+				vH = sb
 			case config.DirectionHorizontal:
-				hAxis = sb
+				hH = sb
 			}
 		}
 	}
 
-	if vAxis == nil || hAxis == nil {
+	if vH == nil || hH == nil {
 		return fmt.Errorf("MatrixBlock %s must have both vertical and horizontal axes", block.Name)
 	}
 
 	// 2. Determine Expansion Mode
-	isVerticalExpand := vAxis.InsertAfter
+	isVerticalExpand := vH.InsertAfter
 
-	var axisData []map[string]interface{}
+	var headerData []map[string]interface{}
 	var staticData []map[string]interface{}
 	var err error
 
 	// 3. Process Axes
 	if isVerticalExpand {
 		// Vertical Expand Mode
-		axisData, err = g.Context.GetBlockDataWithParams(vAxis, params)
+		headerData, err = g.Context.GetBlockDataWithParams(vH, params)
 		if err != nil {
 			return err
 		}
 
 		// Insert Rows logic (same as before)
-		dataCount := len(axisData)
+		dataCount := len(headerData)
 		if dataCount > 1 {
-			_, _, _, endRow, err := parseRange(vAxis.Range.Ref)
+			_, _, _, endRow, err := parseRange(vH.Range.Ref)
 			if err != nil {
 				return err
 			}
-			_, startRow, _, _, err := parseRange(vAxis.Range.Ref)
+			_, startRow, _, _, err := parseRange(vH.Range.Ref)
 			if err != nil {
 				return err
 			}
@@ -274,14 +271,14 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 			}
 		}
 
-		staticData, err = g.Context.GetBlockDataWithParams(hAxis, params)
+		staticData, err = g.Context.GetBlockDataWithParams(hH, params)
 		if err != nil {
 			return err
 		}
 
-		// If Horizontal Axis has multiple items, we need to expand columns too, even if Vertical Axis expanded rows
+		// If Horizontal Axis has multiple items, we need to expand columns too, even if Vertical Header expanded rows
 		if len(staticData) > 1 {
-			startCol, _, endCol, _, err := parseRange(hAxis.Range.Ref)
+			startCol, _, endCol, _, err := parseRange(hH.Range.Ref)
 			if err != nil {
 				return err
 			}
@@ -293,7 +290,7 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 			}
 
 			// Copy Template Columns
-			if err := g.copyTemplateSlice(f, sheetName, block, vAxis.Name, endCol+1, insertCount, false); err != nil {
+			if err := g.copyTemplateSlice(f, sheetName, block, vH.Name, endCol+1, insertCount, false); err != nil {
 				return err
 			}
 		}
@@ -312,29 +309,29 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 			// BUT it affects the CONTENT of the row.
 			// So yes, we should copy rows AFTER columns are expanded.
 
-			_, startRow, _, endRow, err := parseRange(vAxis.Range.Ref)
+			_, startRow, _, endRow, err := parseRange(vH.Range.Ref)
 			if err != nil {
 				return err
 			}
 			axisHeight := endRow - startRow + 1
 			insertCount := (dataCount - 1) * axisHeight
 
-			if err := g.copyTemplateSlice(f, sheetName, block, hAxis.Name, endRow+1, insertCount, true); err != nil {
+			if err := g.copyTemplateSlice(f, sheetName, block, hH.Name, endRow+1, insertCount, true); err != nil {
 				return err
 			}
 		}
 
 	} else {
 		// Horizontal Expand Mode
-		axisData, err = g.Context.GetBlockDataWithParams(hAxis, params)
+		headerData, err = g.Context.GetBlockDataWithParams(hH, params)
 		if err != nil {
 			return err
 		}
 
 		// Insert Cols logic
-		dataCount := len(axisData)
+		dataCount := len(headerData)
 		if dataCount > 1 {
-			startCol, _, endCol, _, err := parseRange(hAxis.Range.Ref)
+			startCol, _, endCol, _, err := parseRange(hH.Range.Ref)
 			if err != nil {
 				return err
 			}
@@ -346,36 +343,36 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 			}
 
 			// Copy Template Columns
-			if err := g.copyTemplateSlice(f, sheetName, block, vAxis.Name, endCol+1, insertCount, false); err != nil {
+			if err := g.copyTemplateSlice(f, sheetName, block, vH.Name, endCol+1, insertCount, false); err != nil {
 				return err
 			}
 		}
 
-		staticData, err = g.Context.GetBlockDataWithParams(vAxis, params)
+		staticData, err = g.Context.GetBlockDataWithParams(vH, params)
 		if err != nil {
 			return err
 		}
 	}
 
-	// Fill vAxis Headers
-	if err := g.fillBlockData(f, sheetName, vAxis, axisData); err != nil {
-		return fmt.Errorf("failed to fill vAxis headers: %w", err)
+	// Fill vertical Headers
+	if err := g.fillBlockData(f, sheetName, vH, headerData); err != nil {
+		return fmt.Errorf("failed to fill vertical headers: %w", err)
 	}
 
-	// Fill hAxis Headers
-	if err := g.fillBlockData(f, sheetName, hAxis, staticData); err != nil {
-		return fmt.Errorf("failed to fill hAxis headers: %w", err)
+	// Fill horizontal Headers
+	if err := g.fillBlockData(f, sheetName, hH, staticData); err != nil {
+		return fmt.Errorf("failed to fill horizontal headers: %w", err)
 	}
 
 	// 5. Fill Intersection Data (Template Blocks)
-	// Iterate over the grid defined by axisData x staticData
+	// Iterate over the grid defined by headerData x staticData
 	// For each cell in the grid, find the corresponding TemplateBlock and fill it.
 
-	// Collect Template Blocks (SubBlocks that are NOT Axis)
+	// Collect Template Blocks (SubBlocks that are NOT Header)
 	var templateBlocks []*config.BlockConfig
 	for i := range block.SubBlocks {
 		sb := &block.SubBlocks[i]
-		// Use Template flag if available, otherwise fallback to Type != Axis
+		// Use Template flag if available, otherwise fallback to Type != Header
 		if sb.Template || sb.Type != config.BlockTypeHeader {
 			templateBlocks = append(templateBlocks, sb)
 		}
@@ -391,42 +388,42 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 		cachedTemplates = append(cachedTemplates, cache)
 	}
 
-	rows := axisData
+	rows := headerData
 	cols := staticData
 	if !isVerticalExpand {
 		rows = staticData
-		cols = axisData
+		cols = headerData
 	}
 
-	// ... (Axis Param Key Logic) ...
-	getAxisParamKey := func(axis *config.BlockConfig) (string, error) {
-		if axis.LabelVariable != "" {
-			return axis.LabelVariable, nil
+	// ... (Header Param Key Logic) ...
+	getHeaderParamKey := func(header *config.BlockConfig) (string, error) {
+		if header.LabelVariable != "" {
+			return header.LabelVariable, nil
 		}
-		conf, err := g.Context.ConfigProvider.GetDataViewConfig(axis.DataViewName)
+		conf, err := g.Context.ConfigProvider.GetDataViewConfig(header.DataViewName)
 		if err != nil {
 			return "", err
 		}
 		if len(conf.Labels) > 0 {
 			return conf.Labels[0].Name, nil
 		}
-		return "", fmt.Errorf("cannot determine parameter key for axis %s", axis.Name)
+		return "", fmt.Errorf("cannot determine parameter key for header %s", header.Name)
 	}
 
-	vKey, err := getAxisParamKey(vAxis)
+	vKey, err := getHeaderParamKey(vH)
 	if err != nil {
 		return err
 	}
-	hKey, err := getAxisParamKey(hAxis)
+	hKey, err := getHeaderParamKey(hH)
 	if err != nil {
 		return err
 	}
 
 	// Reparse ranges to get dimensions for stepping
-	_, vStartRow, _, vEndRow, _ := parseRange(vAxis.Range.Ref)
+	_, vStartRow, _, vEndRow, _ := parseRange(vH.Range.Ref)
 	vStep := vEndRow - vStartRow + 1
 
-	hStartCol, _, hEndCol, _, _ := parseRange(hAxis.Range.Ref)
+	hStartCol, _, hEndCol, _, _ := parseRange(hH.Range.Ref)
 	hStep := hEndCol - hStartCol + 1
 
 	// Iterate Grid & Fill (Write-Many)
@@ -449,14 +446,14 @@ func (g *Generator) processMatrixBlockWithParams(f ExcelFile, sheetName string, 
 				return ""
 			}
 
-			vCol := getLabelName(vAxis.DataViewName, vKey)
+			vCol := getLabelName(vH.DataViewName, vKey)
 			if vCol != "" {
 				if val, ok := rowItem[vCol]; ok {
 					cellParams[vKey] = fmt.Sprintf("%v", val)
 				}
 			}
 
-			hCol := getLabelName(hAxis.DataViewName, hKey)
+			hCol := getLabelName(hH.DataViewName, hKey)
 			if hCol != "" {
 				if val, ok := colItem[hCol]; ok {
 					cellParams[hKey] = fmt.Sprintf("%v", val)

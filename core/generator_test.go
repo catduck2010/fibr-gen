@@ -154,7 +154,7 @@ func TestMatrixBlock_MergedHeader(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(views)
+	provider := config.NewMemoryConfigRegistry(views, nil)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 	adapter := &ExcelizeFile{file: f}
@@ -272,7 +272,7 @@ func TestEndToEnd_DemoReport(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(views)
+	provider := config.NewMemoryConfigRegistry(views, nil)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
@@ -356,7 +356,7 @@ func TestEndToEnd_ValueBlock(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(views)
+	provider := config.NewMemoryConfigRegistry(views, nil)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
@@ -498,7 +498,7 @@ func TestEndToEnd_CrossTest(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(views)
+	provider := config.NewMemoryConfigRegistry(views, nil)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
@@ -606,7 +606,7 @@ func TestEndToEnd_ArchiveDate(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(views)
+	provider := config.NewMemoryConfigRegistry(views, nil)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 
 	// Manually inject filter for test purpose
@@ -733,7 +733,7 @@ func TestDynamicSheet_MatrixBlock_ParamInheritance(t *testing.T) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(views)
+	provider := config.NewMemoryConfigRegistry(views, nil)
 	ctx := NewGenerationContext(wbConfig, provider, fetcher, nil)
 	gen := NewGenerator(ctx)
 
@@ -819,7 +819,7 @@ func BenchmarkValueBlock_Insert50k(b *testing.B) {
 	}
 
 	fetcher := &MockFetcher{Data: mockData}
-	provider := config.NewMemoryConfigRegistry(views)
+	provider := config.NewMemoryConfigRegistry(views, nil)
 
 	// Benchmark Loop
 	saved := false

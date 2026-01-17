@@ -24,11 +24,13 @@ func TestRun(t *testing.T) {
 	}
 
 	configPath := filepath.Join(dir, "config.yaml")
-	configContent := `workbook:
+configContent := `workbook:
   id: "wb1"
   name: "Report"
   template: "template.xlsx"
   outputDir: "out"
+  sheets:
+    - name: "Sheet1"
 `
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		t.Fatalf("write config: %v", err)

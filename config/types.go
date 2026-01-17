@@ -47,7 +47,7 @@ type BlockConfig struct {
 	LabelRange   *CellRange `json:"labelRange,omitempty" yaml:"labelRange,omitempty"`
 	DataViewName string     `json:"dataView,omitempty" yaml:"dataView,omitempty"` // 绑定的数据源视图名
 
-	// Expandable / Axis
+	// MatrixBlock / HeaderBlock
 	Direction     Direction `json:"direction,omitempty" yaml:"direction,omitempty"`
 	RowLimit      int       `json:"rowLimit,omitempty" yaml:"rowLimit,omitempty"`
 	InsertAfter   bool      `json:"insertAfter,omitempty" yaml:"insertAfter,omitempty"`

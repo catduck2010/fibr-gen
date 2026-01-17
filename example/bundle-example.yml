@@ -1,0 +1,58 @@
+workbook:
+  id: "wb_cross_test"
+  name: "CrossTest"
+  template: "cross_template.xlsx"
+  outputDir: "tests"
+  sheets:
+    - name: "Sheet1"
+      dynamic: false
+      blocks:
+        - name: "PerformanceMatrix"
+          type: "matrix"
+          range: { ref: "A2:B3" }
+          subBlocks:
+            # Horizontal Header Axis (Month)
+            - name: "MonthAxis"
+              type: "header"
+              direction: "horizontal"
+              insertAfter: false
+              range: { ref: "B2:B2" }
+              dataView: "v_full_perf" # Changed to full view
+              labelVariable: "month_id"
+            # Vertical Header Axis (Employee)
+            - name: "EmpAxis"
+              type: "header"
+              direction: "vertical"
+              insertAfter: true
+              range: { ref: "A3:A3" }
+              dataView: "v_full_perf" # Changed to full view
+              labelVariable: "emp_id"
+            # Intersection Data
+            - name: "ScoreData"
+              type: "value"
+              template: true # Mark as template block
+              range: { ref: "B3:B3" }
+              dataView: "v_full_perf" # Changed to full view
+              # It will receive emp_id and month_id from context
+              direction: "vertical"
+              limit: 1
+
+dataViews:
+  - name: "v_full_perf"
+    dataSource: "csv_source"
+    labels:
+      - name: "emp_id"
+        column: "EMP_ID"
+      - name: "emp_name"
+        column: "EMP_NAME"
+      - name: "month_id"
+        column: "MONTH_ID"
+      - name: "month_label"
+        column: "MONTH_LABEL"
+      - name: "score"
+        column: "SCORE"
+
+dataSources:
+  - name: "csv_source"
+    driver: "csv"
+    dsn: "local"

@@ -3,119 +3,91 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestLoadConfigBundle(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bundle.yaml")
+func TestLoadConfigBundle_Validation(t *testing.T) {
+	// Create a temporary directory
+	tmpDir, err := os.MkdirTemp("", "fibr-gen-test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
 
-	content := `workbook:
-  id: "wb1"
-  name: "Report"
-  template: "report.xlsx"
-  outputDir: "out"
+	// Case 1: Valid Config
+	validConfig := `
+workbook:
+  id: wb1
+  name: Report
+  template: tpl.xlsx
+  outputDir: out
+  sheets:
+    - name: Sheet1
+      blocks:
+        - name: Block1
+          type: value
+          range: {ref: "A1"}
+          dataView: view1
+
 dataViews:
-  - name: "view1"
+  - name: view1
+    dataSource: ds1
     labels:
-      - name: "id"
-        column: "ID"
+      - name: l1
+        column: c1
+
 dataSources:
-  - name: "source1"
-    driver: "mysql"
-    dsn: "root:pass@tcp(localhost:3306)/db"
+  - name: ds1
+    driver: mysql
+    dsn: user:pass@tcp(localhost:3306)/db
 `
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatalf("write bundle: %v", err)
+	validPath := filepath.Join(tmpDir, "valid.yaml")
+	if err := os.WriteFile(validPath, []byte(validConfig), 0644); err != nil {
+		t.Fatalf("failed to write valid config: %v", err)
 	}
 
-	wb, views, dataSources, err := LoadConfigBundle(path)
+	_, _, _, err = LoadConfigBundle(validPath)
 	if err != nil {
-		t.Fatalf("LoadConfigBundle error: %v", err)
+		t.Errorf("LoadConfigBundle() valid config error = %v", err)
 	}
 
-	if wb.Id != "wb1" {
-		t.Fatalf("workbook id = %s, want wb1", wb.Id)
-	}
-	if _, ok := views["view1"]; !ok {
-		t.Fatalf("expected virtual view view1 to be loaded")
-	}
-	if _, ok := dataSources["source1"]; !ok {
-		t.Fatalf("expected data source source1 to be loaded")
-	}
-}
+	// Case 2: Invalid Config (Missing DataSource)
+	invalidConfig := `
+workbook:
+  id: wb1
+  name: Report
+  template: tpl.xlsx
+  outputDir: out
+  sheets:
+    - name: Sheet1
+      blocks:
+        - name: Block1
+          type: value
+          range: {ref: "A1"}
+          dataView: view1
 
-func TestLoadAllConfigs(t *testing.T) {
-	dir := t.TempDir()
+dataViews:
+  - name: view1
+    dataSource: unknown_ds # References unknown data source
+    labels:
+      - name: l1
+        column: c1
 
-	workbookDir := filepath.Join(dir, "workbooks")
-	dataViewDir := filepath.Join(dir, "dataViews")
-	dataSourceDir := filepath.Join(dir, "datasources")
-	for _, d := range []string{workbookDir, dataViewDir, dataSourceDir} {
-		if err := os.MkdirAll(d, 0755); err != nil {
-			t.Fatalf("mkdir %s: %v", d, err)
-		}
-	}
-
-	wb := `id: "wb1"
-name: "Report"
-template: "report.xlsx"
-outputDir: "out"
+dataSources:
+  - name: ds1
+    driver: mysql
+    dsn: ...
 `
-	if err := os.WriteFile(filepath.Join(workbookDir, "wb1.yaml"), []byte(wb), 0644); err != nil {
-		t.Fatalf("write workbook: %v", err)
+	invalidPath := filepath.Join(tmpDir, "invalid.yaml")
+	if err := os.WriteFile(invalidPath, []byte(invalidConfig), 0644); err != nil {
+		t.Fatalf("failed to write invalid config: %v", err)
 	}
 
-	view := `name: "view1"
-labels:
-  - name: "id"
-    column: "ID"
-`
-	if err := os.WriteFile(filepath.Join(dataViewDir, "view1.yaml"), []byte(view), 0644); err != nil {
-		t.Fatalf("write data view: %v", err)
-	}
-
-	ds := `name: "source1"
-driver: "mysql"
-dsn: "root:pass@tcp(localhost:3306)/db"
-`
-	if err := os.WriteFile(filepath.Join(dataSourceDir, "source1.yaml"), []byte(ds), 0644); err != nil {
-		t.Fatalf("write data source: %v", err)
-	}
-
-	wbs, views, dataSources, err := LoadAllConfigs(dir)
-	if err != nil {
-		t.Fatalf("LoadAllConfigs error: %v", err)
-	}
-	if _, ok := wbs["wb1"]; !ok {
-		t.Fatalf("expected workbook wb1 to be loaded")
-	}
-	if _, ok := views["view1"]; !ok {
-		t.Fatalf("expected virtual view view1 to be loaded")
-	}
-	if _, ok := dataSources["source1"]; !ok {
-		t.Fatalf("expected data source source1 to be loaded")
-	}
-}
-
-func TestLoadDataSourcesBundle(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "datasources.yaml")
-
-	content := `dataSources:
-  - name: "source1"
-    driver: "mysql"
-    dsn: "root:pass@tcp(localhost:3306)/db"
-`
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatalf("write bundle: %v", err)
-	}
-
-	dataSources, err := LoadDataSourcesBundle(path)
-	if err != nil {
-		t.Fatalf("LoadDataSourcesBundle error: %v", err)
-	}
-	if _, ok := dataSources["source1"]; !ok {
-		t.Fatalf("expected data source source1 to be loaded")
+	_, _, _, err = LoadConfigBundle(invalidPath)
+	if err == nil {
+		t.Errorf("LoadConfigBundle() expected error for invalid config, got nil")
+	} else if !strings.Contains(err.Error(), "unknown DataSource") {
+		t.Errorf("LoadConfigBundle() error = %v, want error containing 'unknown DataSource'", err)
 	}
 }

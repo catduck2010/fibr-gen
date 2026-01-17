@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// DataFetcher defines the interface for fetching data for Virtual Views.
+// DataFetcher defines the interface for fetching data for Data Views.
 type DataFetcher interface {
 	// Fetch returns a list of rows (maps) for a given view name and parameters.
 	Fetch(viewName string, params map[string]string) ([]map[string]interface{}, error)
@@ -121,7 +121,7 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 	// So we should filter the DataView memory data.
 	vv.Filter(params)
 
-	// Apply Distinct logic if it's an Axis Block
+	// Apply Distinct logic if it's an Header Block
 	var finalData []map[string]interface{}
 	if block.Type == config.BlockTypeHeader {
 		result, err := ctx.distinctData(vv.Data, block, vv)
@@ -141,7 +141,7 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 	// Debug Log
 	blockTypeStr := ""
 	if block.Type == config.BlockTypeHeader {
-		blockTypeStr = " (Axis)"
+		blockTypeStr = " (Header)"
 	}
 
 	slog.Debug("Block Fetched",
@@ -160,7 +160,7 @@ func (ctx *GenerationContext) GetBlockDataWithParams(block *config.BlockConfig, 
 
 // distinctData filters the data to unique values based on the block's label configuration.
 func (ctx *GenerationContext) distinctData(data []map[string]interface{}, block *config.BlockConfig, v *DataView) ([]map[string]interface{}, error) {
-	// Identify the key label for this axis.
+	// Identify the key label for this header block.
 	keyLabel := block.LabelVariable
 	if keyLabel == "" {
 		if len(v.Config.Labels) > 0 {

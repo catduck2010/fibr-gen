@@ -58,7 +58,7 @@ func TestGenerationContext_GetDataViewCaching(t *testing.T) {
 			Labels: []config.LabelConfig{{Name: "id", Column: "ID"}},
 		},
 	}
-	registry := config.NewMemoryConfigRegistry(views)
+	registry := config.NewMemoryConfigRegistry(views, nil)
 	fetcher := &countingFetcher{
 		data: map[string][]map[string]interface{}{
 			"view1": {{"ID": "1"}},
